@@ -23,6 +23,7 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 	}
 
 	imports := importMap(file)
+	df := buildDataflow(file, imports)
 
 	var findings []rules.Finding
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -47,7 +48,7 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 		if bits, curve := keyParams(pkgPath, sel.Sel.Name, call); bits > 0 || curve != "" {
 			matches = rules.AnnotateKey(matches, bits, curve)
 		}
-		matches = append(matches, goMisuse(pkgPath, sel.Sel.Name, call)...)
+		matches = append(matches, goMisuse(pkgPath, sel.Sel.Name, call, df)...)
 		for _, m := range matches {
 			pos := fset.Position(call.Pos())
 			findings = append(findings, rules.Finding{
@@ -68,18 +69,28 @@ var goStaticIVFuncs = map[string]bool{
 	"NewOFB": true, "NewCFBEncrypter": true, "NewCFBDecrypter": true,
 }
 
-// goMisuse flags hardcoded keys (literal passed to aes/des/rc4.NewCipher) and
-// static IVs (literal passed as the IV to crypto/cipher stream/CBC constructors).
-func goMisuse(pkgPath, fn string, call *ast.CallExpr) []rules.Match {
+// goMisuse flags hardcoded keys / static IVs (a literal passed where a key/IV is
+// expected) and weak-PRNG key/IV material (a value filled by math/rand reaching the
+// same key/IV slot).
+func goMisuse(pkgPath, fn string, call *ast.CallExpr, df *dataflow) []rules.Match {
 	switch pkgPath {
 	case "crypto/aes", "crypto/des", "crypto/rc4":
-		if (fn == "NewCipher" || fn == "NewTripleDESCipher") &&
-			len(call.Args) >= 1 && isLiteralBytes(call.Args[0]) {
-			return []rules.Match{rules.HardcodedKey(goCipherName(pkgPath, fn))}
+		if (fn == "NewCipher" || fn == "NewTripleDESCipher") && len(call.Args) >= 1 {
+			switch {
+			case isLiteralBytes(call.Args[0]):
+				return []rules.Match{rules.HardcodedKey(goCipherName(pkgPath, fn))}
+			case df.tainted(call.Args[0]):
+				return []rules.Match{rules.WeakPRNG(goCipherName(pkgPath, fn))}
+			}
 		}
 	case "crypto/cipher":
-		if goStaticIVFuncs[fn] && len(call.Args) >= 2 && isLiteralBytes(call.Args[1]) {
-			return []rules.Match{rules.StaticIV("")}
+		if goStaticIVFuncs[fn] && len(call.Args) >= 2 {
+			switch {
+			case isLiteralBytes(call.Args[1]):
+				return []rules.Match{rules.StaticIV("")}
+			case df.tainted(call.Args[1]):
+				return []rules.Match{rules.WeakPRNG("")}
+			}
 		}
 	}
 	return nil

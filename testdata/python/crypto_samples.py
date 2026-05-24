@@ -5,6 +5,8 @@ across pyca/cryptography and pycryptodome.
 """
 
 import hashlib
+import random
+import secrets
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec
@@ -37,6 +39,15 @@ def hardcoded():
     enc = AES.new(b"0123456789abcdef", AES.MODE_CBC, iv=b"0000000000000000")
     sym = algorithms.AES(b"hardcoded-key-16")
     static = modes.CBC(b"0000000000000000")
+
+
+def weak_random_key():
+    # Key material from the non-cryptographic random module — flagged via sink taint.
+    weak = random.randbytes(16)
+    enc = AES.new(weak, AES.MODE_CBC)
+    # secrets is correct — must NOT be flagged.
+    good = secrets.token_bytes(16)
+    ok = AES.new(good, AES.MODE_CBC)
 
 
 def strong_or_inventory(key, iv):

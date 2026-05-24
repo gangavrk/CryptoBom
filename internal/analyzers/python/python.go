@@ -29,24 +29,27 @@ func Analyze(path string, src []byte) ([]rules.Finding, error) {
 	}
 	defer tree.Close()
 
+	root := tree.RootNode()
+	df := buildDataflow(root, src)
+
 	var findings []rules.Finding
-	walk(tree.RootNode(), src, path, &findings)
+	walk(root, src, path, df, &findings)
 	return findings, nil
 }
 
-func walk(n *sitter.Node, src []byte, path string, out *[]rules.Finding) {
+func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Finding) {
 	if n == nil {
 		return
 	}
 	if n.Type() == "call" {
-		*out = append(*out, evalCall(n, src, path)...)
+		*out = append(*out, evalCall(n, src, path, df)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
-		walk(n.NamedChild(i), src, path, out)
+		walk(n.NamedChild(i), src, path, df, out)
 	}
 }
 
-func evalCall(call *sitter.Node, src []byte, path string) []rules.Finding {
+func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
 	fn := call.ChildByFieldName("function")
 	if fn == nil || fn.Type() != "attribute" {
 		return nil // only qualified calls (obj.method)
@@ -63,7 +66,7 @@ func evalCall(call *sitter.Node, src []byte, path string) []rules.Finding {
 	if bits, curve := keyParams(obj, attr, args, src); bits > 0 || curve != "" {
 		matches = rules.AnnotateKey(matches, bits, curve)
 	}
-	matches = append(matches, pyMisuse(obj, attr, args, src)...)
+	matches = append(matches, pyMisuse(obj, attr, args, src, df, enclosingScope(call))...)
 	if len(matches) == 0 {
 		return nil
 	}
@@ -153,28 +156,58 @@ var pyCipherClass = map[string]bool{
 
 var pyStaticIVMode = map[string]bool{"CBC": true, "CTR": true, "OFB": true, "CFB": true}
 
-// pyMisuse flags hardcoded keys and static IVs — a literal passed where a key,
-// IV, or nonce is expected.
-func pyMisuse(obj, attr string, args *sitter.Node, src []byte) []rules.Match {
+// pyMisuse flags hardcoded keys / static IVs (a literal where a key/IV is expected)
+// and weak-PRNG key/IV material (a value from the random module reaching that slot).
+func pyMisuse(obj, attr string, args *sitter.Node, src []byte, df *dataflow, scope uint32) []rules.Match {
 	var out []rules.Match
+	weakArg0 := func() bool { return df.weakRandom[varKey(scope, firstArgIdent(args, src))] }
+
 	switch {
 	case attr == "new" && pyCipherCtor[obj]: // pycryptodome: AES.new(b"...", mode, iv=b"...")
-		if firstArgIsString(args) {
+		switch {
+		case firstArgIsString(args):
 			out = append(out, rules.HardcodedKey(pyCipherName(obj)))
+		case weakArg0():
+			out = append(out, rules.WeakPRNG(pyCipherName(obj)))
 		}
-		if keywordIsString(args, "iv", src) || keywordIsString(args, "nonce", src) {
+		switch {
+		case keywordIsString(args, "iv", src) || keywordIsString(args, "nonce", src):
 			out = append(out, rules.StaticIV(pyCipherName(obj)))
+		case df.weakRandom[varKey(scope, keywordIdent(args, "iv", src))]:
+			out = append(out, rules.WeakPRNG(pyCipherName(obj)))
 		}
 	case obj == "algorithms" && pyCipherClass[attr]: // cryptography: algorithms.AES(b"...")
-		if firstArgIsString(args) {
+		switch {
+		case firstArgIsString(args):
 			out = append(out, rules.HardcodedKey(attr))
+		case weakArg0():
+			out = append(out, rules.WeakPRNG(attr))
 		}
 	case obj == "modes" && pyStaticIVMode[attr]: // cryptography: modes.CBC(b"...")
-		if firstArgIsString(args) {
+		switch {
+		case firstArgIsString(args):
 			out = append(out, rules.StaticIV(""))
+		case weakArg0():
+			out = append(out, rules.WeakPRNG(""))
 		}
 	}
 	return out
+}
+
+func firstArgIdent(args *sitter.Node, src []byte) string {
+	if args != nil && args.NamedChildCount() > 0 {
+		if c := args.NamedChild(0); c.Type() == "identifier" {
+			return c.Content(src)
+		}
+	}
+	return ""
+}
+
+func keywordIdent(args *sitter.Node, name string, src []byte) string {
+	if v := keywordValue(args, name, src); v != nil && v.Type() == "identifier" {
+		return v.Content(src)
+	}
+	return ""
 }
 
 func pyCipherName(obj string) string {

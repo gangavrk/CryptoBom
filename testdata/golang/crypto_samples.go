@@ -16,6 +16,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	mrand "math/rand"
 )
 
 func vulnerable(msg []byte) {
@@ -42,6 +43,17 @@ func hardcoded() {
 	// Hardcoded key and static IV — literal material in source.
 	block, _ := aes.NewCipher([]byte("hardcoded-key-16"))
 	_ = cipher.NewCBCEncrypter(block, []byte("0123456789abcdef"))
+}
+
+func weakRandomKey() {
+	// Key material from math/rand — flagged via sink taint.
+	weak := make([]byte, 16)
+	mrand.Read(weak)
+	_, _ = aes.NewCipher(weak)
+	// crypto/rand is correct — must NOT be flagged.
+	good := make([]byte, 16)
+	rand.Read(good)
+	_, _ = aes.NewCipher(good)
 }
 
 func strongOrInventory(msg []byte) {

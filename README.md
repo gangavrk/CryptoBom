@@ -16,7 +16,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 |---|---|
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
-| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG (Java) |
+| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -48,12 +48,20 @@ passed where a key/IV is expected — `new SecretKeySpec("…".getBytes(), "AES"
 `cipher.NewCBCEncrypter(block, []byte("…"))` — so a key/IV held in a variable is never
 flagged.
 
-For **Java**, a value drawn from a non-cryptographic PRNG (`java.util.Random`) is flagged
-*only when it reaches a key/IV sink* (`new SecretKeySpec(buf, …)` / `new IvParameterSpec(buf)`
-where `buf` was filled by `random.nextBytes(buf)`). Requiring the crypto sink keeps it
-precise: ordinary non-crypto `Random` use never triggers, and `SecureRandom` is never
-flagged. Weak-PRNG taint for Python/Go and non-constant-time comparison detection are not
-done yet (the latter needs MAC-source taint, the highest false-positive risk).
+A value drawn from a non-cryptographic PRNG is flagged *only when it reaches a key/IV
+sink* — a lightweight per-function dataflow pass tracks the tainted variable. Requiring
+the crypto sink keeps it precise: ordinary non-crypto random use never triggers, and the
+secure RNG is never flagged. Sources and sinks per language:
+
+- **Java** — `java.util.Random` via `random.nextBytes(buf)` into `new SecretKeySpec(buf, …)`
+  / `new IvParameterSpec(buf)`. `SecureRandom` is never flagged.
+- **Go** — `math/rand` via `rand.Read(buf)` into `aes/des/rc4.NewCipher(buf)` or a
+  `crypto/cipher` IV. `crypto/rand` is never flagged.
+- **Python** — the `random` module (e.g. `random.randbytes()`) into `AES.new(buf, …)` /
+  `algorithms.AES(buf)` / `modes.CBC(buf)`. `secrets` / `os.urandom` are never flagged.
+
+Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
+highest false-positive risk).
 
 ## Build
 
