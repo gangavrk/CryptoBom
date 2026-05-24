@@ -7,16 +7,18 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java**, **Python**, **Go**, **Kotlin**, and **C#** source and emits a CBOM, a SARIF
-> report, and a terminal report. Findings from all languages merge into one CBOM.
+> **Java**, **Python**, **Go**, **Kotlin**, and **C#** source — plus **Spring Boot config**
+> (`application.properties` / `.yml`) — and emits a CBOM, a SARIF report, and a terminal
+> report. Findings from all inputs merge into one CBOM.
 
-## What it detects today (Java, Python, Go, Kotlin & C#)
+## What it detects today (Java, Python, Go, Kotlin, C# & Spring Boot config)
 
 | Category | Examples |
 |---|---|
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
 | Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
+| Protocols & TLS config | SSL 2/3 and TLS 1.0/1.1 (broken/deprecated); weak cipher suites (RC4, 3DES, NULL, EXPORT, anon) — in JVM `SSLContext.getInstance(...)` and Spring Boot `server.ssl.*` settings |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -36,6 +38,11 @@ Detection is precise by design. We favor **zero false positives over completenes
   algorithm (`MD5.Create()`, `RSA.Create(2048)`, `new DESCryptoServiceProvider()`),
   `CipherMode.ECB` is the ECB signal, and hardcoded/weak-PRNG keys are caught on
   `.Key`/`.IV` property assignments.
+- **Spring Boot config** — `application.properties` / `application.yml` are parsed for
+  `server.ssl.protocol`, `server.ssl.enabled-protocols`, and `server.ssl.ciphers`
+  (TLS versions are often configured here, not in code). Deprecated protocols and weak
+  cipher suites are flagged with their line number; TLS 1.2/1.3 are inventoried. Each
+  TLS version becomes a CycloneDX `protocol` asset (`type: tls`, `version: …`).
 
 Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
 guessed at.

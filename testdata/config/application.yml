@@ -1,0 +1,10 @@
+# Spring Boot TLS configuration sample (YAML form) for cryptobom regression testing.
+server:
+  port: 8443
+  ssl:
+    enabled: true
+    protocol: TLS
+    enabled-protocols:
+      - TLSv1.2
+      - TLSv1.3
+    ciphers: TLS_RSA_WITH_3DES_EDE_CBC_SHA

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	configanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/config"
 	csharpanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/csharp"
 	golanganalyzer "github.com/cryptobom/cryptobom/internal/analyzers/golang"
 	javaanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/java"
@@ -195,7 +196,10 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".go") ||
 		strings.HasSuffix(name, ".kt") ||
 		strings.HasSuffix(name, ".kts") ||
-		strings.HasSuffix(name, ".cs")
+		strings.HasSuffix(name, ".cs") ||
+		strings.HasSuffix(name, ".properties") ||
+		strings.HasSuffix(name, ".yml") ||
+		strings.HasSuffix(name, ".yaml")
 }
 
 // analyzeFile dispatches to the analyzer for the file's language.
@@ -215,6 +219,9 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 		return kotlinanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".cs"):
 		return csharpanalyzer.Analyze(p, src)
+	case strings.HasSuffix(p, ".properties"),
+		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"):
+		return configanalyzer.Analyze(p, src)
 	}
 	return nil, nil
 }
