@@ -13,6 +13,7 @@ import (
 
 	golanganalyzer "github.com/cryptobom/cryptobom/internal/analyzers/golang"
 	javaanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/java"
+	kotlinanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/kotlin"
 	pythonanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/python"
 	"github.com/cryptobom/cryptobom/internal/cbom"
 	"github.com/cryptobom/cryptobom/internal/report"
@@ -190,7 +191,9 @@ func scan(path string) ([]rules.Finding, error) {
 func supported(name string) bool {
 	return strings.HasSuffix(name, ".java") ||
 		strings.HasSuffix(name, ".py") ||
-		strings.HasSuffix(name, ".go")
+		strings.HasSuffix(name, ".go") ||
+		strings.HasSuffix(name, ".kt") ||
+		strings.HasSuffix(name, ".kts")
 }
 
 // analyzeFile dispatches to the analyzer for the file's language.
@@ -206,6 +209,8 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 		return pythonanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".go"):
 		return golanganalyzer.Analyze(p, src)
+	case strings.HasSuffix(p, ".kt"), strings.HasSuffix(p, ".kts"):
+		return kotlinanalyzer.Analyze(p, src)
 	}
 	return nil, nil
 }
