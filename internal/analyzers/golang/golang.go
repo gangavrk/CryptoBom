@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"strconv"
 	"strings"
 
 	"github.com/cryptobom/cryptobom/internal/rules"
@@ -42,7 +43,11 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 			return true
 		}
 
-		for _, m := range rules.GoEvaluate(pkgPath, sel.Sel.Name) {
+		matches := rules.GoEvaluate(pkgPath, sel.Sel.Name)
+		if bits, curve := keyParams(pkgPath, sel.Sel.Name, call); bits > 0 || curve != "" {
+			matches = rules.AnnotateKey(matches, bits, curve)
+		}
+		for _, m := range matches {
 			pos := fset.Position(call.Pos())
 			findings = append(findings, rules.Finding{
 				Match:    m,
@@ -55,6 +60,50 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 		return true
 	})
 	return findings, nil
+}
+
+// keyParams extracts an asymmetric key size or curve from a keygen call.
+func keyParams(pkgPath, fn string, call *ast.CallExpr) (bits int, curve string) {
+	switch {
+	case pkgPath == "crypto/rsa" && fn == "GenerateKey":
+		return singleIntArg(call), ""
+	case pkgPath == "crypto/ecdsa" && fn == "GenerateKey":
+		return 0, firstCurveArg(call)
+	}
+	return 0, ""
+}
+
+// singleIntArg returns the value of the sole integer-literal argument, or 0 when
+// there is not exactly one (avoids guessing among multiple ints).
+func singleIntArg(call *ast.CallExpr) int {
+	found, n := 0, 0
+	for _, a := range call.Args {
+		if lit, ok := a.(*ast.BasicLit); ok && lit.Kind == token.INT {
+			if v, err := strconv.Atoi(lit.Value); err == nil {
+				found, n = v, n+1
+			}
+		}
+	}
+	if n == 1 {
+		return found
+	}
+	return 0
+}
+
+// firstCurveArg returns the curve name from a leading elliptic.P256()-style arg.
+func firstCurveArg(call *ast.CallExpr) string {
+	if len(call.Args) == 0 {
+		return ""
+	}
+	switch a := call.Args[0].(type) {
+	case *ast.CallExpr:
+		if se, ok := a.Fun.(*ast.SelectorExpr); ok {
+			return se.Sel.Name
+		}
+	case *ast.SelectorExpr:
+		return a.Sel.Name
+	}
+	return ""
 }
 
 // importMap maps each import's local name to its package path, skipping blank

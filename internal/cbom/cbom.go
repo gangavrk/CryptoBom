@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -61,7 +62,7 @@ func buildComponents(findings []rules.Finding) []cdx.Component {
 	byKey := map[string]*group{}
 	var order []string
 	for _, f := range findings {
-		key := f.RuleID + "|" + f.Algorithm + "|" + f.Mode
+		key := f.RuleID + "|" + f.Algorithm + "|" + f.Mode + "|" + paramSet(f.Match)
 		g, ok := byKey[key]
 		if !ok {
 			g = &group{key: key, match: f.Match}
@@ -123,11 +124,24 @@ func componentFor(g *group) cdx.Component {
 	if mode := algoMode(m.Mode); mode != "" {
 		algoProps.Mode = mode
 	}
+	if m.KeySize > 0 {
+		algoProps.ParameterSetIdentifier = strconv.Itoa(m.KeySize)
+	}
+	if m.Curve != "" {
+		algoProps.EllipticCurve = m.Curve
+		if algoProps.ParameterSetIdentifier == "" {
+			algoProps.ParameterSetIdentifier = m.Curve
+		}
+	}
+	if m.ClassicalBits > 0 {
+		bits := m.ClassicalBits
+		algoProps.ClassicalSecurityLevel = &bits
+	}
 
 	return cdx.Component{
 		BOMRef: g.key,
 		Type:   cdx.ComponentTypeCryptographicAsset,
-		Name:   m.Algorithm,
+		Name:   assetName(m),
 		CryptoProperties: &cdx.CryptoProperties{
 			AssetType:           cdx.CryptoAssetTypeAlgorithm,
 			AlgorithmProperties: algoProps,
@@ -135,6 +149,23 @@ func componentFor(g *group) cdx.Component {
 		Evidence:   &cdx.Evidence{Occurrences: &occ},
 		Properties: &props,
 	}
+}
+
+// assetName names the component, including the key size when known (e.g. RSA-2048).
+func assetName(m rules.Match) string {
+	if m.KeySize > 0 {
+		return fmt.Sprintf("%s-%d", m.Algorithm, m.KeySize)
+	}
+	return m.Algorithm
+}
+
+// paramSet returns the parameter that distinguishes one keyed asset from another
+// (key size or curve), used in the component dedup key.
+func paramSet(m rules.Match) string {
+	if m.KeySize > 0 {
+		return strconv.Itoa(m.KeySize)
+	}
+	return m.Curve
 }
 
 func primitive(s string) cdx.CryptoPrimitive {

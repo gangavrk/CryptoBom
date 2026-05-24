@@ -33,6 +33,15 @@ Detection is precise by design. We favor **zero false positives over completenes
 Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
 guessed at.
 
+**Key parameters.** When a key size or curve is given in the same call —
+`rsa.generate_private_key(key_size=2048)`, `RSA.generate(2048)`,
+`rsa.GenerateKey(rand.Reader, 2048)`, `ecdsa.GenerateKey(elliptic.P256(), …)` — it is
+recorded in the CBOM (`parameterSetIdentifier`, `ellipticCurve`, `classicalSecurityLevel`)
+and the asset is named accordingly (e.g. `RSA-2048`). Classically weak parameters
+(< 112-bit security, e.g. RSA-1024 or P-192) raise an additional finding on top of the
+quantum-vulnerability one. (Java key sizes live on a separate `.initialize(n)` call and
+need dataflow we don't do yet.)
+
 ## Build
 
 ```sh

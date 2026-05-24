@@ -63,6 +63,9 @@ func evalCall(call *sitter.Node, src []byte, path string) []rules.Finding {
 	if len(matches) == 0 {
 		return nil
 	}
+	if bits, curve := keyParams(obj, attr, args, src); bits > 0 || curve != "" {
+		matches = rules.AnnotateKey(matches, bits, curve)
+	}
 
 	pt := call.StartPoint()
 	findings := make([]rules.Finding, 0, len(matches))
@@ -135,6 +138,106 @@ func hasModeECB(args *sitter.Node, src []byte) bool {
 	}
 	scan(args)
 	return found
+}
+
+// keyParams extracts an asymmetric key size or curve from a keygen call,
+// aware of each library's argument convention.
+func keyParams(obj, attr string, args *sitter.Node, src []byte) (bits int, curve string) {
+	switch {
+	case attr == "generate_private_key" && (obj == "rsa" || obj == "dsa"):
+		return keywordInt(args, "key_size", src), ""
+	case attr == "generate" && (obj == "RSA" || obj == "DSA"):
+		if b := keywordInt(args, "bits", src); b > 0 {
+			return b, ""
+		}
+		return firstPositionalInt(args, src), ""
+	case attr == "generate_private_key" && obj == "ec":
+		return 0, firstPositionalName(args, src)
+	case attr == "generate" && obj == "ECC":
+		return 0, keywordString(args, "curve", src)
+	}
+	return 0, ""
+}
+
+func atoi(s string) int {
+	n := 0
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return 0
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n
+}
+
+// keywordInt returns the integer value of keyword argument name, or 0.
+func keywordInt(args *sitter.Node, name string, src []byte) int {
+	if v := keywordValue(args, name, src); v != nil && v.Type() == "integer" {
+		return atoi(v.Content(src))
+	}
+	return 0
+}
+
+// keywordString returns the unquoted value of a string keyword argument, or "".
+func keywordString(args *sitter.Node, name string, src []byte) string {
+	if v := keywordValue(args, name, src); v != nil && v.Type() == "string" {
+		for j := 0; j < int(v.NamedChildCount()); j++ {
+			if part := v.NamedChild(j); part.Type() == "string_content" {
+				return part.Content(src)
+			}
+		}
+	}
+	return ""
+}
+
+func keywordValue(args *sitter.Node, name string, src []byte) *sitter.Node {
+	if args == nil {
+		return nil
+	}
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		kw := args.NamedChild(i)
+		if kw.Type() != "keyword_argument" {
+			continue
+		}
+		if n := kw.ChildByFieldName("name"); n != nil && n.Content(src) == name {
+			return kw.ChildByFieldName("value")
+		}
+	}
+	return nil
+}
+
+// firstPositionalInt returns the first positional integer argument, or 0.
+func firstPositionalInt(args *sitter.Node, src []byte) int {
+	if args == nil {
+		return 0
+	}
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		if c := args.NamedChild(i); c.Type() == "integer" {
+			return atoi(c.Content(src))
+		}
+	}
+	return 0
+}
+
+// firstPositionalName returns the trailing name of the first positional argument,
+// handling forms like ec.SECP256R1() (call), ec.SECP256R1 (attribute), or NAME.
+func firstPositionalName(args *sitter.Node, src []byte) string {
+	if args == nil {
+		return ""
+	}
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		c := args.NamedChild(i)
+		switch c.Type() {
+		case "keyword_argument":
+			continue
+		case "call":
+			return simpleName(c.ChildByFieldName("function"), src)
+		case "attribute", "identifier":
+			return simpleName(c, src)
+		}
+		return ""
+	}
+	return ""
 }
 
 func snippet(n *sitter.Node, src []byte) string {

@@ -13,11 +13,13 @@ from Crypto.PublicKey import RSA
 
 
 def vulnerable(key):
-    # Quantum-vulnerable asymmetric crypto.
+    # Quantum-vulnerable asymmetric crypto (key sizes / curves captured).
     priv = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     eck = ec.generate_private_key(ec.SECP256R1())
     rkey = RSA.generate(2048)
     cipher = PKCS1_OAEP.new(rkey)
+    # Classically weak parameters (also flagged on top of quantum-vulnerability).
+    weak_curve = ec.generate_private_key(ec.SECP192R1())
 
 
 def weak_and_misused(key):

@@ -7,6 +7,7 @@ import (
 	"crypto/des"
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/rc4"
@@ -16,12 +17,14 @@ import (
 )
 
 func vulnerable(msg []byte) {
-	// Quantum-vulnerable asymmetric crypto.
+	// Quantum-vulnerable asymmetric crypto (key sizes / curves captured).
 	rsaKey, _ := rsa.GenerateKey(rand.Reader, 2048)
-	ecKey, _ := ecdsa.GenerateKey(nil, rand.Reader)
+	ecKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	edPub, _, _ := ed25519.GenerateKey(rand.Reader)
 	_, _ = rsa.EncryptPKCS1v15(rand.Reader, &rsaKey.PublicKey, msg)
-	_, _ = ecKey, edPub
+	// Classically weak key size (flagged on top of quantum-vulnerability).
+	weakRSA, _ := rsa.GenerateKey(rand.Reader, 1024)
+	_, _, _ = ecKey, edPub, weakRSA
 }
 
 func weak(key, msg []byte) {

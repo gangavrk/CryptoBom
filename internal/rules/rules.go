@@ -40,6 +40,11 @@ type Match struct {
 	Functions   []string // CBOM crypto functions: encrypt, sign, digest, keygen, keyderive...
 	Mode        string   // CBOM mode when relevant: ecb, cbc, gcm...
 	Remediation string
+
+	// Key parameters, set by AnnotateKey when detected (0 / "" if unknown).
+	KeySize       int    // asymmetric key size in bits, e.g. 2048
+	Curve         string // normalized elliptic curve, e.g. "P-256"
+	ClassicalBits int    // approximate classical security level in bits
 }
 
 // Finding is a Match anchored to a location in a source file.
