@@ -1,0 +1,249 @@
+// Package csharp detects cryptographic usage in C# / .NET source via tree-sitter.
+//
+// .NET puts the algorithm in the type name (MD5.Create(), new RSACryptoServiceProvider(),
+// Aes.Create()) rather than a string argument, so detection is type-based and maps to
+// the shared rules. ECB is the CipherMode.ECB enum, and keys/IVs are set via the .Key
+// and .IV properties.
+package csharp
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/csharp"
+
+	"github.com/cryptobom/cryptobom/internal/rules"
+)
+
+// Analyze parses C# source and returns crypto findings located in path.
+func Analyze(path string, src []byte) ([]rules.Finding, error) {
+	parser := sitter.NewParser()
+	defer parser.Close()
+	parser.SetLanguage(csharp.GetLanguage())
+
+	tree, err := parser.ParseCtx(context.Background(), nil, src)
+	if err != nil {
+		return nil, err
+	}
+	defer tree.Close()
+
+	root := tree.RootNode()
+	df := buildDataflow(root, src)
+
+	var findings []rules.Finding
+	walk(root, src, path, df, &findings)
+	return findings, nil
+}
+
+func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Finding) {
+	if n == nil {
+		return
+	}
+	switch n.Type() {
+	case "invocation_expression":
+		*out = append(*out, evalInvocation(n, src, path)...)
+	case "object_creation_expression":
+		*out = append(*out, evalNew(n, src, path)...)
+	case "member_access_expression":
+		*out = append(*out, evalMemberAccess(n, src, path)...)
+	case "assignment_expression":
+		*out = append(*out, evalAssign(n, src, path, df)...)
+	}
+	for i := 0; i < int(n.NamedChildCount()); i++ {
+		walk(n.NamedChild(i), src, path, df, out)
+	}
+}
+
+// evalInvocation handles static factory/one-shot calls like RSA.Create(2048) or
+// MD5.HashData(data), where the receiver is a crypto type name.
+func evalInvocation(call *sitter.Node, src []byte, path string) []rules.Finding {
+	fn := call.ChildByFieldName("function")
+	if fn == nil || fn.Type() != "member_access_expression" {
+		return nil
+	}
+	recv := fn.ChildByFieldName("expression")
+	if recv == nil || recv.Type() != "identifier" {
+		return nil
+	}
+	matches := rules.CSharpEvaluate(recv.Content(src))
+	if len(matches) == 0 {
+		return nil
+	}
+	if bits := firstIntArg(call, src); bits > 0 {
+		matches = rules.AnnotateKey(matches, bits, "")
+	}
+	return findingsFrom(matches, call, src, path)
+}
+
+// evalNew handles `new <CryptoType>(...)` constructions.
+func evalNew(node *sitter.Node, src []byte, path string) []rules.Finding {
+	t := node.ChildByFieldName("type")
+	if t == nil {
+		return nil
+	}
+	matches := rules.CSharpEvaluate(afterLastDot(t.Content(src)))
+	if len(matches) == 0 {
+		return nil
+	}
+	if bits := firstIntArg(node, src); bits > 0 {
+		matches = rules.AnnotateKey(matches, bits, "")
+	}
+	return findingsFrom(matches, node, src, path)
+}
+
+// evalMemberAccess flags CipherMode.ECB.
+func evalMemberAccess(node *sitter.Node, src []byte, path string) []rules.Finding {
+	expr := node.ChildByFieldName("expression")
+	name := node.ChildByFieldName("name")
+	if expr != nil && expr.Type() == "identifier" && expr.Content(src) == "CipherMode" &&
+		name != nil && name.Content(src) == "ECB" {
+		return findingsFrom(rules.CSharpCipherMode("ECB"), node, src, path)
+	}
+	return nil
+}
+
+// evalAssign flags `obj.Key = <literal>` / `obj.IV = <literal>` (hardcoded) and the
+// same target assigned a value drawn from a non-cryptographic PRNG (weak-PRNG).
+func evalAssign(node *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	left := node.ChildByFieldName("left")
+	right := node.ChildByFieldName("right")
+	if left == nil || right == nil || left.Type() != "member_access_expression" {
+		return nil
+	}
+	prop := ""
+	if nm := left.ChildByFieldName("name"); nm != nil {
+		prop = nm.Content(src)
+	}
+	if prop != "Key" && prop != "IV" {
+		return nil
+	}
+
+	var m rules.Match
+	switch {
+	case isLiteralBytes(right, src):
+		if prop == "Key" {
+			m = rules.HardcodedKey("")
+		} else {
+			m = rules.StaticIV("")
+		}
+	case isWeakRandomVar(right, src, df, node):
+		m = rules.WeakPRNG("")
+	}
+	if m.RuleID == "" {
+		return nil
+	}
+	return findingsFrom([]rules.Match{m}, node, src, path)
+}
+
+func isWeakRandomVar(arg *sitter.Node, src []byte, df *dataflow, node *sitter.Node) bool {
+	return arg != nil && arg.Type() == "identifier" &&
+		df.weakRandom[varKey(enclosingScope(node), arg.Content(src))]
+}
+
+var bytesMethods = map[string]bool{"GetBytes": true, "FromBase64String": true, "FromHexString": true}
+
+// isLiteralBytes reports whether n is literal key material: a string literal, or a
+// call like Encoding.UTF8.GetBytes("…") / Convert.FromBase64String("…").
+func isLiteralBytes(n *sitter.Node, src []byte) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Type() {
+	case "string_literal":
+		return true
+	case "invocation_expression":
+		fn := n.ChildByFieldName("function")
+		if fn != nil && fn.Type() == "member_access_expression" {
+			if nm := fn.ChildByFieldName("name"); nm != nil && bytesMethods[nm.Content(src)] {
+				return hasStringArg(n, src)
+			}
+		}
+	}
+	return false
+}
+
+func findingsFrom(matches []rules.Match, node *sitter.Node, src []byte, path string) []rules.Finding {
+	pt := node.StartPoint()
+	out := make([]rules.Finding, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, rules.Finding{
+			Match:    m,
+			File:     path,
+			Line:     int(pt.Row) + 1,
+			Column:   int(pt.Column) + 1,
+			Evidence: snippet(node, src),
+		})
+	}
+	return out
+}
+
+// --- helpers ---
+
+func argExprs(call *sitter.Node) []*sitter.Node {
+	args := call.ChildByFieldName("arguments")
+	if args == nil {
+		return nil
+	}
+	var out []*sitter.Node
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		if a := args.NamedChild(i); a.Type() == "argument" {
+			out = append(out, a.NamedChild(0))
+		}
+	}
+	return out
+}
+
+func firstIntArg(call *sitter.Node, src []byte) int {
+	for _, a := range argExprs(call) {
+		if a != nil && a.Type() == "integer_literal" {
+			return atoi(a.Content(src))
+		}
+		return 0 // only consider the first positional argument
+	}
+	return 0
+}
+
+func hasStringArg(call *sitter.Node, src []byte) bool {
+	for _, a := range argExprs(call) {
+		if a != nil && a.Type() == "string_literal" {
+			return true
+		}
+	}
+	return false
+}
+
+func atoi(s string) int {
+	v := 0
+	for _, r := range s {
+		if r == '_' {
+			continue
+		}
+		if r < '0' || r > '9' {
+			return 0
+		}
+		v = v*10 + int(r-'0')
+	}
+	return v
+}
+
+func afterLastDot(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.LastIndex(s, "."); i >= 0 {
+		return s[i+1:]
+	}
+	return s
+}
+
+func snippet(n *sitter.Node, src []byte) string {
+	s := n.Content(src)
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
+}
+
+func varKey(scope uint32, name string) string {
+	return fmt.Sprintf("%d:%s", scope, name)
+}

@@ -7,10 +7,10 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java**, **Python**, **Go**, and **Kotlin** source and emits a CBOM, a SARIF report,
-> and a terminal report. Findings from all languages merge into one CBOM.
+> **Java**, **Python**, **Go**, **Kotlin**, and **C#** source and emits a CBOM, a SARIF
+> report, and a terminal report. Findings from all languages merge into one CBOM.
 
-## What it detects today (Java, Python, Go & Kotlin)
+## What it detects today (Java, Python, Go, Kotlin & C#)
 
 | Category | Examples |
 |---|---|
@@ -32,6 +32,10 @@ Detection is precise by design. We favor **zero false positives over completenes
 - **Kotlin** — the same JCA APIs as Java (`Cipher.getInstance(…)`,
   `KeyPairGenerator`, `SecretKeySpec(…)`, …), reusing the Java rule set. Byte keys
   come from `"literal".toByteArray()` and constructors omit `new`.
+- **C# / .NET** — type-based: `System.Security.Cryptography` types resolve to the
+  algorithm (`MD5.Create()`, `RSA.Create(2048)`, `new DESCryptoServiceProvider()`),
+  `CipherMode.ECB` is the ECB signal, and hardcoded/weak-PRNG keys are caught on
+  `.Key`/`.IV` property assignments.
 
 Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
 guessed at.
@@ -65,6 +69,9 @@ secure RNG is never flagged. Sources and sinks per language:
 - **Kotlin** — `Random()` via `nextBytes(buf)` into `SecretKeySpec(buf, …)` /
   `IvParameterSpec(buf)`. `SecureRandom` is never flagged. (Key sizes likewise link
   `KeyPairGenerator.getInstance(…)` to a later `initialize(n)`.)
+- **C#** — `System.Random` via `NextBytes(buf)` into a `.Key`/`.IV` assignment.
+  `RandomNumberGenerator` is never flagged. (Key sizes come from `Create(n)` / the
+  constructor argument.)
 
 Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
 highest false-positive risk).

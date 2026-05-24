@@ -141,6 +141,14 @@ func evalCipher(transform string) []Match {
 			Functions:   []string{"encrypt", "decrypt"},
 			Remediation: "Replace with AES-256 (GCM).",
 		})
+	case "RC2":
+		out = append(out, Match{
+			RuleID: "CB-WEAK-RC2", Title: "RC2 is a weak 64-bit block cipher",
+			Severity: SeverityMedium, Category: CategoryWeak,
+			Algorithm: "RC2", Detail: transform, Primitive: "block-cipher",
+			Functions:   []string{"encrypt", "decrypt"},
+			Remediation: "Replace with AES-256 (GCM).",
+		})
 	}
 
 	// ECB is only a misuse for symmetric block ciphers. RSA's "ECB" token in

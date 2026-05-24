@@ -30,7 +30,7 @@ func WeakPRNG(algo string) Match {
 		Category:    CategoryMisuse,
 		Algorithm:   algo,
 		Detail:      "non-CSPRNG source",
-		Remediation: "Use a cryptographically secure RNG (SecureRandom in Java, crypto/rand in Go, secrets/os.urandom in Python) for key and IV material.",
+		Remediation: "Use a cryptographically secure RNG (SecureRandom in Java/Kotlin, crypto/rand in Go, secrets/os.urandom in Python, RandomNumberGenerator in .NET) for key and IV material.",
 	}
 }
 
