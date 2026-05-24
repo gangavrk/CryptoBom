@@ -26,7 +26,29 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 	df := buildDataflow(file, imports)
 
 	var findings []rules.Finding
+	add := func(matches []rules.Match, n ast.Node) {
+		pos := fset.Position(n.Pos())
+		for _, m := range matches {
+			findings = append(findings, rules.Finding{
+				Match:    m,
+				File:     filename,
+				Line:     pos.Line,
+				Column:   pos.Column,
+				Evidence: snippet(src, fset, n),
+			})
+		}
+	}
+
 	ast.Inspect(file, func(n ast.Node) bool {
+		// Non-constant-time comparison of a MAC/digest with `==` / `!=`.
+		if be, ok := n.(*ast.BinaryExpr); ok {
+			if (be.Op == token.EQL || be.Op == token.NEQ) &&
+				(df.taintedMac(be.X) || df.taintedMac(be.Y)) {
+				add([]rules.Match{rules.TimingCompare()}, be)
+			}
+			return true
+		}
+
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -49,19 +71,20 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 			matches = rules.AnnotateKey(matches, bits, curve)
 		}
 		matches = append(matches, goMisuse(pkgPath, sel.Sel.Name, call, df)...)
-		for _, m := range matches {
-			pos := fset.Position(call.Pos())
-			findings = append(findings, rules.Finding{
-				Match:    m,
-				File:     filename,
-				Line:     pos.Line,
-				Column:   pos.Column,
-				Evidence: snippet(src, fset, call),
-			})
-		}
+		matches = append(matches, goTimingSink(pkgPath, sel.Sel.Name, call, df)...)
+		add(matches, call)
 		return true
 	})
 	return findings, nil
+}
+
+// goTimingSink flags bytes.Equal / reflect.DeepEqual on a MAC/digest operand.
+func goTimingSink(pkgPath, fn string, call *ast.CallExpr, df *dataflow) []rules.Match {
+	timing := (pkgPath == "bytes" && fn == "Equal") || (pkgPath == "reflect" && fn == "DeepEqual")
+	if timing && len(call.Args) >= 2 && (df.taintedMac(call.Args[0]) || df.taintedMac(call.Args[1])) {
+		return []rules.Match{rules.TimingCompare()}
+	}
+	return nil
 }
 
 var goStaticIVFuncs = map[string]bool{
@@ -188,9 +211,9 @@ func importMap(file *ast.File) map[string]string {
 	return m
 }
 
-func snippet(src []byte, fset *token.FileSet, call *ast.CallExpr) string {
-	start := fset.Position(call.Pos()).Offset
-	end := fset.Position(call.End()).Offset
+func snippet(src []byte, fset *token.FileSet, n ast.Node) string {
+	start := fset.Position(n.Pos()).Offset
+	end := fset.Position(n.End()).Offset
 	if start < 0 || end > len(src) || start >= end {
 		return ""
 	}

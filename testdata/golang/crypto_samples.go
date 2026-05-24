@@ -4,18 +4,21 @@
 package samples
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/des"
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/elliptic"
+	"crypto/hmac"
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/rc4"
 	"crypto/rsa"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/subtle"
 	mrand "math/rand"
 )
 
@@ -54,6 +57,27 @@ func weakRandomKey() {
 	good := make([]byte, 16)
 	rand.Read(good)
 	_, _ = aes.NewCipher(good)
+}
+
+func timingCompare(key, msg, provided []byte) {
+	mac := hmac.New(sha256.New, key)
+	mac.Write(msg)
+	tag := mac.Sum(nil)
+	// Non-constant-time comparison of a MAC — flagged.
+	if bytes.Equal(tag, provided) {
+		_ = tag
+	}
+	// Constant-time comparison — must NOT be flagged.
+	if subtle.ConstantTimeCompare(tag, provided) == 1 {
+		_ = tag
+	}
+	if hmac.Equal(tag, provided) {
+		_ = tag
+	}
+	// Non-crypto byte comparison — must NOT be flagged.
+	if bytes.Equal(msg, provided) {
+		_ = msg
+	}
 }
 
 func strongOrInventory(msg []byte) {

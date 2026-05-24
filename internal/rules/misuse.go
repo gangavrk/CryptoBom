@@ -34,6 +34,21 @@ func WeakPRNG(algo string) Match {
 	}
 }
 
+// TimingCompare is the misuse match for comparing a MAC or digest with a
+// variable-time comparison (a timing side-channel).
+func TimingCompare() Match {
+	return Match{
+		RuleID:      "CB-MISUSE-TIMING-COMPARE",
+		Title:       "Non-constant-time comparison of a MAC/digest",
+		Severity:    SeverityMedium,
+		Category:    CategoryMisuse,
+		Algorithm:   "MAC",
+		Primitive:   "mac",
+		Detail:      "variable-time comparison",
+		Remediation: "Use a constant-time comparison (MessageDigest.isEqual in Java/Kotlin, hmac.compare_digest in Python, crypto/subtle.ConstantTimeCompare or hmac.Equal in Go, CryptographicOperations.FixedTimeEquals in .NET).",
+	}
+}
+
 // StaticIV is the misuse match for a literal/static IV or nonce. algo is the
 // cipher when known, otherwise "".
 func StaticIV(algo string) Match {
