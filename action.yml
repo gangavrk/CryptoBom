@@ -1,0 +1,34 @@
+name: "cryptobom"
+description: "Scan source for quantum-vulnerable, weak, and misused cryptography; emit a CycloneDX CBOM and a SARIF report."
+author: "cryptobom"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  path:
+    description: "Path to scan, relative to the repository root."
+    required: false
+    default: "."
+  sarif-file:
+    description: "Where to write the SARIF 2.1.0 report (relative to the workspace)."
+    required: false
+    default: "cryptobom.sarif"
+  cbom-file:
+    description: "Where to write the CycloneDX CBOM JSON (relative to the workspace)."
+    required: false
+    default: "cryptobom.cbom.json"
+
+outputs:
+  sarif-file:
+    description: "Path to the written SARIF report."
+  cbom-file:
+    description: "Path to the written CBOM."
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  args:
+    - ${{ inputs.path }}
+    - ${{ inputs.sarif-file }}
+    - ${{ inputs.cbom-file }}

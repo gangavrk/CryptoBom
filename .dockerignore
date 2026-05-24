@@ -1,0 +1,7 @@
+.git
+.github
+dist/
+bin/
+cryptobom
+*.sarif
+*.cbom.json

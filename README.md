@@ -51,6 +51,35 @@ cryptobom scan --sarif results.sarif --cbom cbom.json ./path/to/java/project
 stdout). The SARIF report carries the actionable problems for developers; the CBOM
 is the full cryptographic inventory for tracking and compliance.
 
+## GitHub Action
+
+`cryptobom` ships as a container action ([action.yml](action.yml)). It scans your
+repo and writes a SARIF report (for code scanning) and a CBOM (as a build artifact).
+
+```yaml
+permissions:
+  contents: read
+  security-events: write # to upload SARIF
+
+steps:
+  - uses: actions/checkout@v4
+  - id: cryptobom
+    uses: cryptobom/cryptobom@v1 # not yet published; this repo dogfoods it via `uses: ./`
+    with:
+      path: .                       # default
+      sarif-file: cryptobom.sarif   # default
+      cbom-file: cryptobom.cbom.json # default
+  - uses: github/codeql-action/upload-sarif@v3
+    with:
+      sarif_file: ${{ steps.cryptobom.outputs.sarif-file }}
+```
+
+**Inputs:** `path`, `sarif-file`, `cbom-file`.
+**Outputs:** `sarif-file`, `cbom-file` (the written paths).
+
+See [.github/workflows/scan.yml](.github/workflows/scan.yml) for the working
+example this repo runs against its own `testdata/`.
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).

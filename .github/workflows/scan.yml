@@ -1,0 +1,39 @@
+name: cryptobom scan
+
+# Dogfoods the action: scans this repo, uploads SARIF to code scanning, and
+# keeps the CBOM as a build artifact. Also serves as the canonical usage example.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write # required to upload SARIF to code scanning
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: cryptobom
+        uses: ./
+        with:
+          path: testdata/java
+          sarif-file: cryptobom.sarif
+          cbom-file: cryptobom.cbom.json
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.cryptobom.outputs.sarif-file }}
+
+      - name: Upload CBOM artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cbom
+          path: ${{ steps.cryptobom.outputs.cbom-file }}
