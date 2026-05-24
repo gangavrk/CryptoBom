@@ -129,13 +129,34 @@ func componentFor(g *group) cdx.Component {
 // cryptoProperties builds the CBOM crypto-properties for a match: a protocol asset
 // for TLS/SSL versions, otherwise an algorithm asset.
 func cryptoProperties(m rules.Match) *cdx.CryptoProperties {
-	if m.AssetKind == "protocol" {
+	switch m.AssetKind {
+	case "protocol":
 		return &cdx.CryptoProperties{
 			AssetType: cdx.CryptoAssetTypeProtocol,
 			ProtocolProperties: &cdx.CryptoProtocolProperties{
 				Type:    cdx.CryptoProtocolTypeTLS,
 				Version: m.ProtocolVersion,
 			},
+		}
+	case "certificate":
+		return &cdx.CryptoProperties{
+			AssetType: cdx.CryptoAssetTypeCertificate,
+			CertificateProperties: &cdx.CertificateProperties{
+				SubjectName:   m.CertSubject,
+				NotValidAfter: m.CertNotAfter,
+			},
+		}
+	case "material":
+		props := &cdx.RelatedCryptoMaterialProperties{
+			Type: cdx.RelatedCryptoMaterialType(m.MaterialType),
+		}
+		if m.KeySize > 0 {
+			size := m.KeySize
+			props.Size = &size
+		}
+		return &cdx.CryptoProperties{
+			AssetType:                       cdx.CryptoAssetTypeRelatedCryptoMaterial,
+			RelatedCryptoMaterialProperties: props,
 		}
 	}
 
@@ -174,6 +195,9 @@ func cryptoProperties(m rules.Match) *cdx.CryptoProperties {
 
 // assetName names the component, including the key size when known (e.g. RSA-2048).
 func assetName(m rules.Match) string {
+	if m.AssetKind == "certificate" && m.CertSubject != "" {
+		return "X.509: " + m.CertSubject
+	}
 	if m.KeySize > 0 {
 		return fmt.Sprintf("%s-%d", m.Algorithm, m.KeySize)
 	}

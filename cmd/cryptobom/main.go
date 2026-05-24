@@ -16,6 +16,7 @@ import (
 	golanganalyzer "github.com/cryptobom/cryptobom/internal/analyzers/golang"
 	javaanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/java"
 	kotlinanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/kotlin"
+	materialanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/material"
 	pythonanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/python"
 	"github.com/cryptobom/cryptobom/internal/cbom"
 	"github.com/cryptobom/cryptobom/internal/report"
@@ -239,7 +240,8 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".cs") ||
 		strings.HasSuffix(name, ".properties") ||
 		strings.HasSuffix(name, ".yml") ||
-		strings.HasSuffix(name, ".yaml")
+		strings.HasSuffix(name, ".yaml") ||
+		materialanalyzer.IsMaterialFile(name)
 }
 
 // analyzeFile dispatches to the analyzer for the file's language and tags findings
@@ -264,6 +266,8 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 	case strings.HasSuffix(p, ".properties"),
 		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"):
 		findings, err = configanalyzer.Analyze(p, src)
+	case materialanalyzer.IsMaterialFile(filepath.Base(p)):
+		findings, err = materialanalyzer.Analyze(p, src)
 	}
 	if err == nil && isTestPath(p) {
 		for i := range findings {

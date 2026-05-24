@@ -46,9 +46,12 @@ type Match struct {
 	Curve         string // normalized elliptic curve, e.g. "P-256"
 	ClassicalBits int    // approximate classical security level in bits
 
-	// Protocol assets (AssetKind == "protocol"), e.g. TLS versions.
-	AssetKind       string // "" = algorithm (default), "protocol"
-	ProtocolVersion string // e.g. "1.1", "3.0"
+	// Non-algorithm CBOM assets.
+	AssetKind       string // "" = algorithm (default), "protocol", "certificate", "material"
+	ProtocolVersion string // protocol: e.g. "1.1", "3.0"
+	MaterialType    string // material: "private-key", "public-key", ...
+	CertSubject     string // certificate: subject common name
+	CertNotAfter    string // certificate: expiry (RFC3339)
 }
 
 // Finding is a Match anchored to a location in a source file.
