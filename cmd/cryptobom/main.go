@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	javaanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/java"
+	pythonanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/python"
 	"github.com/cryptobom/cryptobom/internal/cbom"
 	"github.com/cryptobom/cryptobom/internal/report"
 	"github.com/cryptobom/cryptobom/internal/rules"
@@ -145,7 +146,7 @@ func emitToFile(path string, emit func(io.Writer) error) (err error) {
 	return emit(f)
 }
 
-// scan walks path for .java files and aggregates findings.
+// scan walks path for supported source files and aggregates findings.
 func scan(path string) ([]rules.Finding, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -166,7 +167,7 @@ func scan(path string) ([]rules.Finding, error) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(d.Name(), ".java") {
+		if !supported(d.Name()) {
 			return nil
 		}
 		fs, ferr := analyzeFile(p)
@@ -179,12 +180,23 @@ func scan(path string) ([]rules.Finding, error) {
 	return all, err
 }
 
+func supported(name string) bool {
+	return strings.HasSuffix(name, ".java") || strings.HasSuffix(name, ".py")
+}
+
+// analyzeFile dispatches to the analyzer for the file's language.
 func analyzeFile(p string) ([]rules.Finding, error) {
 	src, err := os.ReadFile(p)
 	if err != nil {
 		return nil, err
 	}
-	return javaanalyzer.Analyze(p, src)
+	switch {
+	case strings.HasSuffix(p, ".java"):
+		return javaanalyzer.Analyze(p, src)
+	case strings.HasSuffix(p, ".py"):
+		return pythonanalyzer.Analyze(p, src)
+	}
+	return nil, nil
 }
 
 func isTerminal(f *os.File) bool {

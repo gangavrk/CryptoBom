@@ -141,15 +141,21 @@ func evalCipher(transform string) []Match {
 	// ECB is only a misuse for symmetric block ciphers. RSA's "ECB" token in
 	// the JCE is a historical quirk, not real ECB — flagging it is a false positive.
 	if strings.EqualFold(mode, "ECB") && isBlockCipher(up) {
-		out = append(out, Match{
-			RuleID: "CB-MISUSE-ECB", Title: "ECB mode leaks plaintext structure",
-			Severity: SeverityHigh, Category: CategoryMisuse,
-			Algorithm: alg, Detail: transform, Primitive: "block-cipher", Mode: "ecb",
-			Functions:   []string{"encrypt", "decrypt"},
-			Remediation: "Use an authenticated mode such as GCM; never ECB.",
-		})
+		out = append(out, ecbMisuse(alg, transform))
 	}
 	return out
+}
+
+// ecbMisuse builds the shared ECB-mode misuse match. alg is the cipher (used as
+// the asset name) and detail is the spec as written (transform or call form).
+func ecbMisuse(alg, detail string) Match {
+	return Match{
+		RuleID: "CB-MISUSE-ECB", Title: "ECB mode leaks plaintext structure",
+		Severity: SeverityHigh, Category: CategoryMisuse,
+		Algorithm: alg, Detail: detail, Primitive: "block-cipher", Mode: "ecb",
+		Functions:   []string{"encrypt", "decrypt"},
+		Remediation: "Use an authenticated mode such as GCM; never ECB.",
+	}
 }
 
 func evalDigest(alg string) []Match {

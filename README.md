@@ -7,10 +7,10 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java** source and emits a CBOM, a SARIF report, and a terminal report. Python and Go
-> analyzers and a GitHub Action are planned next.
+> **Java** and **Python** source and emits a CBOM, a SARIF report, and a terminal report.
+> Findings from both languages merge into one CBOM. A Go analyzer is planned next.
 
-## What it detects today (Java)
+## What it detects today (Java & Python)
 
 | Category | Examples |
 |---|---|
@@ -18,10 +18,17 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4 |
 | Misuse | ECB mode on block ciphers |
 
-Detection is precise by design: it matches the standard JCA factory calls
-(`Cipher`, `MessageDigest`, `KeyPairGenerator`, `Signature`, `KeyAgreement`,
-`KeyGenerator`) with string-literal algorithm arguments. We favor **zero false
-positives over completeness**.
+Detection is precise by design. We favor **zero false positives over completeness**:
+
+- **Java** — the standard JCA factory calls (`Cipher`, `MessageDigest`,
+  `KeyPairGenerator`, `Signature`, `KeyAgreement`, `KeyGenerator`) with string-literal
+  algorithm arguments.
+- **Python** — qualified calls from the two dominant libraries: pyca/cryptography
+  (`hashes.SHA1()`, `modes.ECB()`, `rsa.generate_private_key()`, …) and pycryptodome
+  (`hashlib.md5()`, `AES.new(key, AES.MODE_ECB)`, `RSA.generate()`, …).
+
+Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
+guessed at.
 
 ## Build
 
@@ -29,7 +36,7 @@ positives over completeness**.
 go build -o cryptobom ./cmd/cryptobom
 ```
 
-> Requires a C toolchain — the Java parser uses tree-sitter via cgo.
+> Requires a C toolchain — the language parsers use tree-sitter via cgo.
 
 ## Usage
 
