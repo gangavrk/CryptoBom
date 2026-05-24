@@ -10,10 +10,15 @@ import (
 type dataflow struct {
 	keySize    map[string]int  // var -> bits, from kpg.initialize(n)
 	weakRandom map[string]bool // var -> filled by Random().nextBytes(var)
+	macObj     map[string]bool // var -> a Mac / MessageDigest from getInstance
+	macTag     map[string]bool // var -> a MAC/digest from .doFinal()/.digest()
 }
 
 func buildDataflow(root *sitter.Node, src []byte) *dataflow {
-	df := &dataflow{keySize: map[string]int{}, weakRandom: map[string]bool{}}
+	df := &dataflow{
+		keySize: map[string]int{}, weakRandom: map[string]bool{},
+		macObj: map[string]bool{}, macTag: map[string]bool{},
+	}
 	randomVar := map[string]bool{}
 
 	// Pass 1: `val r = Random()` bindings (not SecureRandom).
@@ -32,18 +37,29 @@ func buildDataflow(root *sitter.Node, src []byte) *dataflow {
 		}
 	})
 
-	// Pass 2: initialize(bits) key sizes and nextBytes() weak-random targets.
+	// Pass 2: Mac/MessageDigest getInstance bindings.
 	walkAll(root, func(n *sitter.Node) {
 		if n.Type() != "call_expression" {
 			return
 		}
-		callee := firstNamedChild(n)
-		if callee == nil || callee.Type() != "navigation_expression" {
+		recv, method := callRecvMethod(n, src)
+		if method == "getInstance" && recv != nil && recv.Type() == "simple_identifier" {
+			if cls := recv.Content(src); cls == "Mac" || cls == "MessageDigest" {
+				if v := assignedVar(n, src); v != "" {
+					df.macObj[varKey(enclosingScope(n), v)] = true
+				}
+			}
+		}
+	})
+
+	// Pass 3: initialize(bits), nextBytes() weak-random, and .doFinal()/.digest() tags.
+	walkAll(root, func(n *sitter.Node) {
+		if n.Type() != "call_expression" {
 			return
 		}
-		recv := navReceiver(callee)
+		recv, method := callRecvMethod(n, src)
 		args := argExprs(n)
-		switch navMethod(callee, src) {
+		switch method {
 		case "initialize":
 			if recv != nil && recv.Type() == "simple_identifier" && len(args) > 0 {
 				if v, ok := intOf(args[0], src); ok {
@@ -55,9 +71,26 @@ func buildDataflow(root *sitter.Node, src []byte) *dataflow {
 				len(args) > 0 && args[0] != nil && args[0].Type() == "simple_identifier" {
 				df.weakRandom[varKey(enclosingScope(n), args[0].Content(src))] = true
 			}
+		case "doFinal", "digest":
+			if recv != nil && recv.Type() == "simple_identifier" &&
+				df.macObj[varKey(enclosingScope(n), recv.Content(src))] {
+				if v := assignedVar(n, src); v != "" {
+					df.macTag[varKey(enclosingScope(n), v)] = true
+				}
+			}
 		}
 	})
 	return df
+}
+
+// callRecvMethod returns the receiver and method name of `recv.method(...)`, or
+// (nil, "") if the call is not a navigation call.
+func callRecvMethod(call *sitter.Node, src []byte) (*sitter.Node, string) {
+	callee := firstNamedChild(call)
+	if callee == nil || callee.Type() != "navigation_expression" {
+		return nil, ""
+	}
+	return navReceiver(callee), navMethod(callee, src)
 }
 
 func walkAll(n *sitter.Node, fn func(*sitter.Node)) {

@@ -44,10 +44,61 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 	}
 	if n.Type() == "call_expression" {
 		*out = append(*out, evalCall(n, src, path, df)...)
+		*out = append(*out, evalTimingCompare(n, src, path, df)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, df, out)
 	}
+}
+
+// evalTimingCompare flags Arrays.equals(...) / x.equals(...) / x.contentEquals(...)
+// where an operand is a MAC/digest. MessageDigest.isEqual is the safe form and is
+// named differently, so it is never matched.
+func evalTimingCompare(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	recv, method := callRecvMethod(call, src)
+	if method != "equals" && method != "contentEquals" {
+		return nil
+	}
+	args := argExprs(call)
+	scope := enclosingScope(call)
+
+	var flagged bool
+	if recv != nil && recv.Type() == "simple_identifier" && recv.Content(src) == "Arrays" {
+		flagged = anyMacArg(args, src, df, scope) // Arrays.equals(a, b)
+	} else {
+		flagged = isMacExpr(recv, src, df, scope) || anyMacArg(args, src, df, scope)
+	}
+	if !flagged {
+		return nil
+	}
+	return findingsFrom([]rules.Match{rules.TimingCompare()}, call, src, path)
+}
+
+// isMacExpr reports whether a node is a MAC/digest value: a tagged variable or a
+// direct macObj.doFinal()/.digest() call.
+func isMacExpr(n *sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	if n == nil {
+		return false
+	}
+	if n.Type() == "simple_identifier" {
+		return df.macTag[varKey(scope, n.Content(src))]
+	}
+	if n.Type() == "call_expression" {
+		recv, method := callRecvMethod(n, src)
+		if recv != nil && recv.Type() == "simple_identifier" && (method == "doFinal" || method == "digest") {
+			return df.macObj[varKey(scope, recv.Content(src))]
+		}
+	}
+	return false
+}
+
+func anyMacArg(args []*sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	for _, a := range args {
+		if isMacExpr(a, src, df, scope) {
+			return true
+		}
+	}
+	return false
 }
 
 func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {

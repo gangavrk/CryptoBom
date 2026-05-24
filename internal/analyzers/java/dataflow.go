@@ -12,22 +12,37 @@ import (
 type dataflow struct {
 	keySize    map[string]int  // var -> bits, from kpg.initialize(n)
 	weakRandom map[string]bool // var -> filled by a java.util.Random
+	macObj     map[string]bool // var -> a Mac / MessageDigest from getInstance
+	macTag     map[string]bool // var -> a MAC/digest value from .doFinal()/.digest()
 }
 
 func buildDataflow(root *sitter.Node, src []byte) *dataflow {
-	df := &dataflow{keySize: map[string]int{}, weakRandom: map[string]bool{}}
+	df := &dataflow{
+		keySize: map[string]int{}, weakRandom: map[string]bool{},
+		macObj: map[string]bool{}, macTag: map[string]bool{},
+	}
 	randomVar := map[string]bool{} // vars bound to new Random()
 
-	// Pass 1: record variables bound to a weak PRNG constructor.
+	// Pass 1: weak-PRNG bindings and Mac/MessageDigest getInstance bindings.
 	walkAll(root, func(n *sitter.Node) {
 		name, value := binding(n, src)
 		if value != nil && value.Type() == "object_creation_expression" &&
 			isWeakRandomType(typeName(value, src)) {
 			randomVar[varKey(enclosingScope(n), name)] = true
 		}
+		if n.Type() == "method_invocation" && callName(n, src) == "getInstance" {
+			if obj := n.ChildByFieldName("object"); obj != nil && obj.Type() == "identifier" {
+				if cls := obj.Content(src); cls == "Mac" || cls == "MessageDigest" {
+					if v := assignedVar(n, src); v != "" {
+						df.macObj[varKey(enclosingScope(n), v)] = true
+					}
+				}
+			}
+		}
 	})
 
-	// Pass 2: initialize(int) key sizes, and nextBytes() weak-random targets.
+	// Pass 2: initialize(int) key sizes, nextBytes() weak-random, and
+	// .doFinal()/.digest() MAC/digest tags.
 	walkAll(root, func(n *sitter.Node) {
 		if n.Type() != "method_invocation" {
 			return
@@ -51,9 +66,23 @@ func buildDataflow(root *sitter.Node, src []byte) *dataflow {
 					df.weakRandom[varKey(enclosingScope(n), a.Content(src))] = true
 				}
 			}
+		case "doFinal", "digest":
+			if obj != nil && obj.Type() == "identifier" &&
+				df.macObj[varKey(enclosingScope(n), obj.Content(src))] {
+				if v := assignedVar(n, src); v != "" {
+					df.macTag[varKey(enclosingScope(n), v)] = true
+				}
+			}
 		}
 	})
 	return df
+}
+
+func callName(n *sitter.Node, src []byte) string {
+	if name := n.ChildByFieldName("name"); name != nil {
+		return name.Content(src)
+	}
+	return ""
 }
 
 func walkAll(n *sitter.Node, fn func(*sitter.Node)) {

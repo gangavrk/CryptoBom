@@ -45,6 +45,7 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 		if f, ok := evalCall(n, src, path, df); ok {
 			*out = append(*out, f...)
 		}
+		*out = append(*out, evalTimingCompare(n, src, path, df)...)
 	case "object_creation_expression":
 		*out = append(*out, evalNew(n, src, path, df)...)
 	}
@@ -97,6 +98,65 @@ func evalNew(node *sitter.Node, src []byte, path string, df *dataflow) []rules.F
 func isWeakRandomVar(arg *sitter.Node, src []byte, df *dataflow, node *sitter.Node) bool {
 	return arg != nil && arg.Type() == "identifier" &&
 		df.weakRandom[varKey(enclosingScope(node), arg.Content(src))]
+}
+
+// evalTimingCompare flags Arrays.equals(...) / x.equals(...) where an operand is a
+// MAC/digest (a variable-time comparison). MessageDigest.isEqual is the safe form
+// and is named differently, so it is never matched.
+func evalTimingCompare(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	if callName(call, src) != "equals" {
+		return nil
+	}
+	obj := call.ChildByFieldName("object")
+	args := call.ChildByFieldName("arguments")
+	scope := enclosingScope(call)
+
+	var flagged bool
+	if obj != nil && obj.Type() == "identifier" && obj.Content(src) == "Arrays" {
+		flagged = anyArgMac(args, src, df, scope) // Arrays.equals(a, b)
+	} else {
+		flagged = isMacExpr(obj, src, df, scope) || anyArgMac(args, src, df, scope) // x.equals(y)
+	}
+	if !flagged {
+		return nil
+	}
+	pt := call.StartPoint()
+	return []rules.Finding{{
+		Match: rules.TimingCompare(), File: path,
+		Line: int(pt.Row) + 1, Column: int(pt.Column) + 1,
+		Evidence: snippet(call, src),
+	}}
+}
+
+// isMacExpr reports whether a node is a MAC/digest value: a tagged variable, or a
+// direct macObj.doFinal()/.digest() call.
+func isMacExpr(n *sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	if n == nil {
+		return false
+	}
+	if n.Type() == "identifier" {
+		return df.macTag[varKey(scope, n.Content(src))]
+	}
+	if n.Type() == "method_invocation" {
+		o := n.ChildByFieldName("object")
+		nm := callName(n, src)
+		if o != nil && o.Type() == "identifier" && (nm == "doFinal" || nm == "digest") {
+			return df.macObj[varKey(scope, o.Content(src))]
+		}
+	}
+	return false
+}
+
+func anyArgMac(args *sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	if args == nil {
+		return false
+	}
+	for i := 0; i < int(args.NamedChildCount()); i++ {
+		if isMacExpr(args.NamedChild(i), src, df, scope) {
+			return true
+		}
+	}
+	return false
 }
 
 // isLiteralBytes reports whether a node is literal key material: a string literal

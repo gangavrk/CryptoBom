@@ -1,8 +1,10 @@
 package com.example.demo;
 
+import java.util.Arrays;
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.KeyPairGenerator;
@@ -57,6 +59,22 @@ public class CryptoSamples {
         SecureRandom sr = new SecureRandom();
         sr.nextBytes(goodKey);
         SecretKeySpec fromSecure = new SecretKeySpec(goodKey, "AES");
+    }
+
+    boolean timingCompare(byte[] key, byte[] msg, byte[] provided) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(key, "HmacSHA256"));
+        byte[] tag = mac.doFinal(msg);
+        // Non-constant-time comparison of a MAC — flagged.
+        if (Arrays.equals(tag, provided)) {
+            return true;
+        }
+        // Constant-time comparison — must NOT be flagged.
+        if (MessageDigest.isEqual(tag, provided)) {
+            return true;
+        }
+        // Non-crypto comparison — must NOT be flagged.
+        return Arrays.equals(msg, provided);
     }
 
     void strongOrInventory() throws Exception {

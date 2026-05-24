@@ -2,12 +2,14 @@ package com.example.demo
 
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
+import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import java.security.KeyPairGenerator
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.security.Signature
+import java.util.Arrays
 import java.util.Random
 
 // Sample for cryptobom regression testing. Kotlin uses the same JCA APIs as Java.
@@ -51,6 +53,22 @@ class CryptoSamples {
         val sr = SecureRandom()
         sr.nextBytes(good)
         val fromSecure = SecretKeySpec(good, "AES")
+    }
+
+    fun timingCompare(key: ByteArray, msg: ByteArray, provided: ByteArray): Boolean {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        val tag = mac.doFinal(msg)
+        // Non-constant-time comparison of a MAC — flagged.
+        if (Arrays.equals(tag, provided)) {
+            return true
+        }
+        // Constant-time comparison — must NOT be flagged.
+        if (MessageDigest.isEqual(tag, provided)) {
+            return true
+        }
+        // Non-crypto comparison — must NOT be flagged.
+        return msg.contentEquals(provided)
     }
 
     fun strongOrInventory() {
