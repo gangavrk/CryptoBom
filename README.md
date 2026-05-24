@@ -7,8 +7,8 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java** source and emits a CBOM and a terminal report. Python and Go analyzers,
-> SARIF output, and a GitHub Action are planned next.
+> **Java** source and emits a CBOM, a SARIF report, and a terminal report. Python and Go
+> analyzers and a GitHub Action are planned next.
 
 ## What it detects today (Java)
 
@@ -39,6 +39,9 @@ cryptobom scan ./path/to/java/project
 
 # Emit a CycloneDX CBOM (JSON) to stdout
 cryptobom scan --format cbom ./path/to/java/project > cbom.json
+
+# Emit SARIF 2.1.0 for IDEs / GitHub code scanning
+cryptobom scan --format sarif ./path/to/java/project > results.sarif
 ```
 
 ## License

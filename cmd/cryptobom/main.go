@@ -14,6 +14,7 @@ import (
 	"github.com/cryptobom/cryptobom/internal/cbom"
 	"github.com/cryptobom/cryptobom/internal/report"
 	"github.com/cryptobom/cryptobom/internal/rules"
+	"github.com/cryptobom/cryptobom/internal/sarif"
 )
 
 const usage = `cryptobom — cryptographic discovery for the post-quantum transition
@@ -22,7 +23,7 @@ usage:
   cryptobom scan [flags] [path]
 
 flags:
-  --format string   output format: terminal | cbom  (default "terminal")
+  --format string   output format: terminal | cbom | sarif  (default "terminal")
   --no-color        disable ANSI colors in terminal output
 
 path defaults to the current directory.
@@ -74,8 +75,8 @@ func run(args []string) error {
 	if path == "" {
 		path = "."
 	}
-	if format != "terminal" && format != "cbom" {
-		return fmt.Errorf("invalid --format %q (want terminal or cbom)", format)
+	if format != "terminal" && format != "cbom" && format != "sarif" {
+		return fmt.Errorf("invalid --format %q (want terminal, cbom, or sarif)", format)
 	}
 
 	findings, err := scan(path)
@@ -86,6 +87,8 @@ func run(args []string) error {
 	switch format {
 	case "cbom":
 		return cbom.Emit(os.Stdout, path, findings)
+	case "sarif":
+		return sarif.Emit(os.Stdout, findings)
 	default:
 		report.Write(os.Stdout, path, findings, !noColor && isTerminal(os.Stdout))
 		return nil
