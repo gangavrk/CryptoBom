@@ -42,7 +42,14 @@ cryptobom scan --format cbom ./path/to/java/project > cbom.json
 
 # Emit SARIF 2.1.0 for IDEs / GitHub code scanning
 cryptobom scan --format sarif ./path/to/java/project > results.sarif
+
+# One scan, both artifacts: a developer report on screen plus files on disk
+cryptobom scan --sarif results.sarif --cbom cbom.json ./path/to/java/project
 ```
+
+`--cbom` and `--sarif` write to files independently of `--format` (which controls
+stdout). The SARIF report carries the actionable problems for developers; the CBOM
+is the full cryptographic inventory for tracking and compliance.
 
 ## License
 

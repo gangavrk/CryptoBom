@@ -1,10 +1,11 @@
 // Command cryptobom scans source code for cryptographic usage and reports
-// quantum-vulnerable, weak, and misused algorithms as a CycloneDX CBOM or a
-// terminal report.
+// quantum-vulnerable, weak, and misused algorithms as a terminal report, a
+// CycloneDX CBOM, and/or a SARIF report.
 package main
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -23,8 +24,15 @@ usage:
   cryptobom scan [flags] [path]
 
 flags:
-  --format string   output format: terminal | cbom | sarif  (default "terminal")
+  --format string   stdout format: terminal | cbom | sarif  (default "terminal")
+  --cbom file       also write a CycloneDX CBOM to file
+  --sarif file      also write a SARIF 2.1.0 report to file
   --no-color        disable ANSI colors in terminal output
+
+The --cbom and --sarif flags write to files independently of --format, so a
+single scan can print a developer report and emit both machine artifacts:
+
+  cryptobom scan --sarif results.sarif --cbom cbom.json ./src
 
 path defaults to the current directory.
 `
@@ -51,25 +59,27 @@ func run(args []string) error {
 
 	format := "terminal"
 	noColor := false
-	var path string
+	var path, cbomPath, sarifPath string
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		a := rest[i]
+		var err error
 		switch {
 		case a == "--no-color":
 			noColor = true
-		case a == "--format":
-			if i+1 >= len(rest) {
-				return fmt.Errorf("--format requires a value (terminal or cbom)")
-			}
-			i++
-			format = rest[i]
-		case strings.HasPrefix(a, "--format="):
-			format = strings.TrimPrefix(a, "--format=")
+		case a == "--format" || strings.HasPrefix(a, "--format="):
+			format, i, err = flagValue("--format", rest, i)
+		case a == "--cbom" || strings.HasPrefix(a, "--cbom="):
+			cbomPath, i, err = flagValue("--cbom", rest, i)
+		case a == "--sarif" || strings.HasPrefix(a, "--sarif="):
+			sarifPath, i, err = flagValue("--sarif", rest, i)
 		case strings.HasPrefix(a, "-"):
-			return fmt.Errorf("unknown flag %q", a)
+			err = fmt.Errorf("unknown flag %q", a)
 		default:
 			path = a
+		}
+		if err != nil {
+			return err
 		}
 	}
 	if path == "" {
@@ -84,6 +94,20 @@ func run(args []string) error {
 		return err
 	}
 
+	// File outputs are written independently of the stdout --format.
+	if cbomPath != "" {
+		if err := emitToFile(cbomPath, func(w io.Writer) error { return cbom.Emit(w, path, findings) }); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "cryptobom: wrote CBOM to %s\n", cbomPath)
+	}
+	if sarifPath != "" {
+		if err := emitToFile(sarifPath, func(w io.Writer) error { return sarif.Emit(w, findings) }); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "cryptobom: wrote SARIF to %s\n", sarifPath)
+	}
+
 	switch format {
 	case "cbom":
 		return cbom.Emit(os.Stdout, path, findings)
@@ -93,6 +117,32 @@ func run(args []string) error {
 		report.Write(os.Stdout, path, findings, !noColor && isTerminal(os.Stdout))
 		return nil
 	}
+}
+
+// flagValue resolves a flag's value given as "--flag value" or "--flag=value",
+// returning the value and the (possibly advanced) loop index.
+func flagValue(name string, rest []string, i int) (string, int, error) {
+	if v, ok := strings.CutPrefix(rest[i], name+"="); ok {
+		return v, i, nil
+	}
+	if i+1 >= len(rest) {
+		return "", i, fmt.Errorf("%s requires a value", name)
+	}
+	return rest[i+1], i + 1, nil
+}
+
+// emitToFile creates path and writes one format to it.
+func emitToFile(path string, emit func(io.Writer) error) (err error) {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+	}()
+	return emit(f)
 }
 
 // scan walks path for .java files and aggregates findings.
