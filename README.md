@@ -18,7 +18,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
 | Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
-| Protocols & TLS config | SSL 2/3 and TLS 1.0/1.1 (broken/deprecated); weak cipher suites (RC4, 3DES, NULL, EXPORT, anon) — in JVM `SSLContext.getInstance(...)` and Spring Boot `server.ssl.*` settings |
+| Protocols & TLS config | SSL 2/3 and TLS 1.0/1.1 (broken/deprecated); weak cipher suites (RC4, 3DES, NULL, EXPORT, anon). Detected across every form a TLS version takes — see below |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -43,6 +43,14 @@ Detection is precise by design. We favor **zero false positives over completenes
   (TLS versions are often configured here, not in code). Deprecated protocols and weak
   cipher suites are flagged with their line number; TLS 1.2/1.3 are inventoried. Each
   TLS version becomes a CycloneDX `protocol` asset (`type: tls`, `version: …`).
+
+**TLS versions in every form.** A TLS/SSL version is written differently per platform;
+all of these are now recognized and mapped to the same protocol assets:
+
+- String literal — `SSLContext.getInstance("TLSv1.1")` (Java/Kotlin), config values.
+- Method call — `setEnabledProtocols(…)` / `setProtocols(…)` string arrays (Java/Kotlin).
+- Named constants/enums — `tls.VersionTLS10` (Go), `ssl.PROTOCOL_TLSv1` /
+  `ssl.TLSVersion.TLSv1_2` (Python), `SslProtocols.Tls11` (C#).
 
 Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
 guessed at.

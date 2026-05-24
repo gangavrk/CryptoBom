@@ -31,6 +31,11 @@ class CryptoSamples {
         val legacy = javax.net.ssl.SSLContext.getInstance("SSLv3")
     }
 
+    fun enabledProtocols(socket: javax.net.ssl.SSLSocket) {
+        // Enabled-protocols set on the socket — TLSv1 flagged, TLSv1.2 inventory.
+        socket.setEnabledProtocols(arrayOf("TLSv1", "TLSv1.2"))
+    }
+
     fun keySizesAndMisuse(iv: ByteArray) {
         // Key size linked from a later initialize() call (dataflow).
         val weakRsa = KeyPairGenerator.getInstance("RSA")

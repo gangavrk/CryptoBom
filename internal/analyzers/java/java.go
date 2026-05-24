@@ -46,6 +46,7 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 			*out = append(*out, f...)
 		}
 		*out = append(*out, evalTimingCompare(n, src, path, df)...)
+		*out = append(*out, evalProtocolSetter(n, src, path)...)
 	case "object_creation_expression":
 		*out = append(*out, evalNew(n, src, path, df)...)
 	}
@@ -98,6 +99,48 @@ func evalNew(node *sitter.Node, src []byte, path string, df *dataflow) []rules.F
 func isWeakRandomVar(arg *sitter.Node, src []byte, df *dataflow, node *sitter.Node) bool {
 	return arg != nil && arg.Type() == "identifier" &&
 		df.weakRandom[varKey(enclosingScope(node), arg.Content(src))]
+}
+
+// evalProtocolSetter flags setEnabledProtocols/setProtocols(... "TLSv1.1" ...) calls.
+// Only string literals that resolve to a known protocol are reported, so unrelated
+// setProtocols calls produce nothing.
+func evalProtocolSetter(call *sitter.Node, src []byte, path string) []rules.Finding {
+	switch callName(call, src) {
+	case "setEnabledProtocols", "setProtocols":
+	default:
+		return nil
+	}
+	pt := call.StartPoint()
+	var out []rules.Finding
+	for _, s := range collectStringLiterals(call.ChildByFieldName("arguments"), src) {
+		for _, m := range rules.EvalProtocol(s) {
+			out = append(out, rules.Finding{
+				Match: m, File: path,
+				Line: int(pt.Row) + 1, Column: int(pt.Column) + 1, Evidence: snippet(call, src),
+			})
+		}
+	}
+	return out
+}
+
+// collectStringLiterals returns the unquoted values of all string literals under n.
+func collectStringLiterals(n *sitter.Node, src []byte) []string {
+	var out []string
+	var walk func(*sitter.Node)
+	walk = func(x *sitter.Node) {
+		if x == nil {
+			return
+		}
+		if x.Type() == "string_literal" {
+			out = append(out, unquote(x.Content(src)))
+			return
+		}
+		for i := 0; i < int(x.NamedChildCount()); i++ {
+			walk(x.NamedChild(i))
+		}
+	}
+	walk(n)
+	return out
 }
 
 // evalTimingCompare flags Arrays.equals(...) / x.equals(...) where an operand is a

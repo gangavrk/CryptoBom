@@ -45,10 +45,49 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 	if n.Type() == "call_expression" {
 		*out = append(*out, evalCall(n, src, path, df)...)
 		*out = append(*out, evalTimingCompare(n, src, path, df)...)
+		*out = append(*out, evalProtocolSetter(n, src, path)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, df, out)
 	}
+}
+
+// evalProtocolSetter flags setEnabledProtocols/setProtocols("TLSv1.1", …) calls.
+func evalProtocolSetter(call *sitter.Node, src []byte, path string) []rules.Finding {
+	_, method := callRecvMethod(call, src)
+	if method != "setEnabledProtocols" && method != "setProtocols" {
+		return nil
+	}
+	var matches []rules.Match
+	for _, s := range collectStringLiterals(call, src) {
+		matches = append(matches, rules.EvalProtocol(s)...)
+	}
+	if len(matches) == 0 {
+		return nil
+	}
+	return findingsFrom(matches, call, src, path)
+}
+
+// collectStringLiterals returns the values of all string literals under n.
+func collectStringLiterals(n *sitter.Node, src []byte) []string {
+	var out []string
+	var walk func(*sitter.Node)
+	walk = func(x *sitter.Node) {
+		if x == nil {
+			return
+		}
+		if x.Type() == "string_literal" {
+			if s, ok := stringOf(x, src); ok {
+				out = append(out, s)
+			}
+			return
+		}
+		for i := 0; i < int(x.NamedChildCount()); i++ {
+			walk(x.NamedChild(i))
+		}
+	}
+	walk(n)
+	return out
 }
 
 // evalTimingCompare flags Arrays.equals(...) / x.equals(...) / x.contentEquals(...)

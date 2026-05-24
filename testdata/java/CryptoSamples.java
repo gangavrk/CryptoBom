@@ -36,6 +36,11 @@ public class CryptoSamples {
         javax.net.ssl.SSLContext modern = javax.net.ssl.SSLContext.getInstance("TLSv1.3");
     }
 
+    void enabledProtocols(javax.net.ssl.SSLSocket socket) {
+        // Enabled-protocols set on the socket — TLSv1 flagged, TLSv1.2 inventory.
+        socket.setEnabledProtocols(new String[]{"TLSv1", "TLSv1.2"});
+    }
+
     void hardcoded(byte[] iv) throws Exception {
         // Hardcoded key and static IV — literal material in source.
         SecretKeySpec key = new SecretKeySpec("hardcoded-demo-key".getBytes(), "AES");
