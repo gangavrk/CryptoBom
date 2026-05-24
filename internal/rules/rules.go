@@ -45,6 +45,10 @@ type Match struct {
 	KeySize       int    // asymmetric key size in bits, e.g. 2048
 	Curve         string // normalized elliptic curve, e.g. "P-256"
 	ClassicalBits int    // approximate classical security level in bits
+
+	// Protocol assets (AssetKind == "protocol"), e.g. TLS versions.
+	AssetKind       string // "" = algorithm (default), "protocol"
+	ProtocolVersion string // e.g. "1.1", "3.0"
 }
 
 // Finding is a Match anchored to a location in a source file.
@@ -65,6 +69,7 @@ var factories = map[string]bool{
 	"KeyGenerator":     true,
 	"Signature":        true,
 	"KeyAgreement":     true,
+	"SSLContext":       true, // SSLContext.getInstance("TLSv1.2") — protocol version
 }
 
 // IsFactory reports whether className is a recognized JCA crypto factory.
@@ -86,6 +91,8 @@ func Evaluate(factory, arg string) []Match {
 		return evalSignature(arg)
 	case "KeyAgreement":
 		return evalKeyAgreement(arg)
+	case "SSLContext":
+		return EvalProtocol(arg)
 	}
 	return nil
 }

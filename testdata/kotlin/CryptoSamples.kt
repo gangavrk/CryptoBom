@@ -27,6 +27,8 @@ class CryptoSamples {
         val des = Cipher.getInstance("DES")
         val aesEcb = Cipher.getInstance("AES/ECB/PKCS5Padding")
         val md5 = MessageDigest.getInstance("MD5")
+        // Deprecated TLS protocol version (SSLContext is JVM, shared with Java).
+        val legacy = javax.net.ssl.SSLContext.getInstance("SSLv3")
     }
 
     fun keySizesAndMisuse(iv: ByteArray) {

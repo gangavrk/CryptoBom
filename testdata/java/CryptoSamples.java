@@ -31,6 +31,9 @@ public class CryptoSamples {
         Cipher des = Cipher.getInstance("DES");
         Cipher aesEcb = Cipher.getInstance("AES/ECB/PKCS5Padding");
         MessageDigest md5 = MessageDigest.getInstance("MD5");
+        // Deprecated TLS protocol version; the modern one is inventory-only.
+        javax.net.ssl.SSLContext legacy = javax.net.ssl.SSLContext.getInstance("TLSv1.1");
+        javax.net.ssl.SSLContext modern = javax.net.ssl.SSLContext.getInstance("TLSv1.3");
     }
 
     void hardcoded(byte[] iv) throws Exception {

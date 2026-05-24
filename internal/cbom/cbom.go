@@ -87,10 +87,6 @@ func buildComponents(findings []rules.Finding) []cdx.Component {
 
 func componentFor(g *group) cdx.Component {
 	m := g.match
-	fns := make([]cdx.CryptoFunction, 0, len(m.Functions))
-	for _, fn := range m.Functions {
-		fns = append(fns, cdx.CryptoFunction(fn))
-	}
 
 	occ := g.occ
 	sort.Slice(occ, func(i, j int) bool {
@@ -113,6 +109,33 @@ func componentFor(g *group) cdx.Component {
 		props = append(props, cdx.Property{Name: "cryptobom:remediation", Value: m.Remediation})
 	}
 
+	return cdx.Component{
+		BOMRef:           g.key,
+		Type:             cdx.ComponentTypeCryptographicAsset,
+		Name:             assetName(m),
+		CryptoProperties: cryptoProperties(m),
+		Evidence:         &cdx.Evidence{Occurrences: &occ},
+		Properties:       &props,
+	}
+}
+
+// cryptoProperties builds the CBOM crypto-properties for a match: a protocol asset
+// for TLS/SSL versions, otherwise an algorithm asset.
+func cryptoProperties(m rules.Match) *cdx.CryptoProperties {
+	if m.AssetKind == "protocol" {
+		return &cdx.CryptoProperties{
+			AssetType: cdx.CryptoAssetTypeProtocol,
+			ProtocolProperties: &cdx.CryptoProtocolProperties{
+				Type:    cdx.CryptoProtocolTypeTLS,
+				Version: m.ProtocolVersion,
+			},
+		}
+	}
+
+	fns := make([]cdx.CryptoFunction, 0, len(m.Functions))
+	for _, fn := range m.Functions {
+		fns = append(fns, cdx.CryptoFunction(fn))
+	}
 	algoProps := &cdx.CryptoAlgorithmProperties{
 		Primitive:       primitive(m.Primitive),
 		AlgorithmFamily: m.Algorithm,
@@ -136,17 +159,9 @@ func componentFor(g *group) cdx.Component {
 		bits := m.ClassicalBits
 		algoProps.ClassicalSecurityLevel = &bits
 	}
-
-	return cdx.Component{
-		BOMRef: g.key,
-		Type:   cdx.ComponentTypeCryptographicAsset,
-		Name:   assetName(m),
-		CryptoProperties: &cdx.CryptoProperties{
-			AssetType:           cdx.CryptoAssetTypeAlgorithm,
-			AlgorithmProperties: algoProps,
-		},
-		Evidence:   &cdx.Evidence{Occurrences: &occ},
-		Properties: &props,
+	return &cdx.CryptoProperties{
+		AssetType:           cdx.CryptoAssetTypeAlgorithm,
+		AlgorithmProperties: algoProps,
 	}
 }
 
