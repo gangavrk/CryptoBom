@@ -5,6 +5,7 @@ across pyca/cryptography and pycryptodome.
 """
 
 import hashlib
+import hmac
 import random
 import secrets
 from cryptography.hazmat.primitives import hashes
@@ -48,6 +49,18 @@ def weak_random_key():
     # secrets is correct — must NOT be flagged.
     good = secrets.token_bytes(16)
     ok = AES.new(good, AES.MODE_CBC)
+
+
+def timing_compare(key, msg, provided):
+    tag = hmac.new(key, msg).digest()
+    # Non-constant-time comparison of a MAC — flagged.
+    if tag == provided:
+        return False
+    # Constant-time comparison — must NOT be flagged.
+    if hmac.compare_digest(tag, provided):
+        return True
+    # Non-crypto comparison — must NOT be flagged.
+    return msg == provided
 
 
 def strong_or_inventory(key, iv):

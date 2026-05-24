@@ -41,12 +41,74 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 	if n == nil {
 		return
 	}
-	if n.Type() == "call" {
+	switch n.Type() {
+	case "call":
 		*out = append(*out, evalCall(n, src, path, df)...)
+	case "comparison_operator":
+		*out = append(*out, evalComparison(n, src, path, df)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, df, out)
 	}
+}
+
+// evalComparison flags `a == b` / `a != b` where an operand is a MAC/digest.
+func evalComparison(node *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	if node.NamedChildCount() != 2 { // skip chained comparisons (a < b < c)
+		return nil
+	}
+	op := node.ChildByFieldName("operators")
+	if op == nil || (op.Type() != "==" && op.Type() != "!=") {
+		return nil
+	}
+	left, right := node.NamedChild(0), node.NamedChild(1)
+	scope := enclosingScope(node)
+	if !isMacOperand(left, src, df, scope) && !isMacOperand(right, src, df, scope) {
+		return nil
+	}
+	pt := node.StartPoint()
+	return []rules.Finding{{
+		Match:    rules.TimingCompare(),
+		File:     path,
+		Line:     int(pt.Row) + 1,
+		Column:   int(pt.Column) + 1,
+		Evidence: snippet(node, src),
+	}}
+}
+
+func isMacOperand(n *sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	if n == nil {
+		return false
+	}
+	if n.Type() == "identifier" {
+		return df.macTag[varKey(scope, n.Content(src))]
+	}
+	return isMacSourceCall(n, src)
+}
+
+// isMacSourceCall reports whether a call is `<hmac|hashlib>....digest()`/`.hexdigest()`.
+func isMacSourceCall(call *sitter.Node, src []byte) bool {
+	if call == nil || call.Type() != "call" {
+		return false
+	}
+	fn := call.ChildByFieldName("function")
+	if fn == nil || fn.Type() != "attribute" {
+		return false
+	}
+	if attr := fn.ChildByFieldName("attribute"); attr == nil ||
+		(attr.Content(src) != "digest" && attr.Content(src) != "hexdigest") {
+		return false
+	}
+	inner := fn.ChildByFieldName("object")
+	if inner == nil || inner.Type() != "call" {
+		return false
+	}
+	innerFn := inner.ChildByFieldName("function")
+	if innerFn == nil || innerFn.Type() != "attribute" {
+		return false
+	}
+	obj := simpleName(innerFn.ChildByFieldName("object"), src)
+	return obj == "hmac" || obj == "hashlib"
 }
 
 func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {

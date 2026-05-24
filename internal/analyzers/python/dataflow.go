@@ -11,23 +11,29 @@ import (
 // identically named locals in different functions don't collide.
 type dataflow struct {
 	weakRandom map[string]bool
+	macTag     map[string]bool
 }
 
 func buildDataflow(root *sitter.Node, src []byte) *dataflow {
-	df := &dataflow{weakRandom: map[string]bool{}}
+	df := &dataflow{weakRandom: map[string]bool{}, macTag: map[string]bool{}}
 	walkAll(root, func(n *sitter.Node) {
 		if n.Type() != "assignment" {
 			return
 		}
 		left := n.ChildByFieldName("left")
 		right := n.ChildByFieldName("right")
-		if left == nil || left.Type() != "identifier" || right == nil || right.Type() != "call" {
+		if left == nil || left.Type() != "identifier" || right == nil {
 			return
 		}
-		fn := right.ChildByFieldName("function")
-		if fn != nil && fn.Type() == "attribute" &&
-			simpleName(fn.ChildByFieldName("object"), src) == "random" {
-			df.weakRandom[varKey(enclosingScope(n), left.Content(src))] = true
+		scope := enclosingScope(n)
+		if right.Type() == "call" {
+			if fn := right.ChildByFieldName("function"); fn != nil && fn.Type() == "attribute" &&
+				simpleName(fn.ChildByFieldName("object"), src) == "random" {
+				df.weakRandom[varKey(scope, left.Content(src))] = true
+			}
+			if isMacSourceCall(right, src) {
+				df.macTag[varKey(scope, left.Content(src))] = true
+			}
 		}
 	})
 	return df
