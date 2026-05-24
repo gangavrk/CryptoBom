@@ -11,5 +11,9 @@ coverage.*
 # Editor / OS
 .DS_Store
 .idea/
+*.iml
 .vscode/
 *.swp
+
+# Local tooling
+.claude/
