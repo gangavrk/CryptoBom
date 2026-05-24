@@ -28,45 +28,57 @@ func Analyze(path string, src []byte) ([]rules.Finding, error) {
 	}
 	defer tree.Close()
 
+	root := tree.RootNode()
+	df := buildDataflow(root, src)
+
 	var findings []rules.Finding
-	walk(tree.RootNode(), src, path, &findings)
+	walk(root, src, path, df, &findings)
 	return findings, nil
 }
 
-func walk(n *sitter.Node, src []byte, path string, out *[]rules.Finding) {
+func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Finding) {
 	if n == nil {
 		return
 	}
 	switch n.Type() {
 	case "method_invocation":
-		if f, ok := evalCall(n, src, path); ok {
+		if f, ok := evalCall(n, src, path, df); ok {
 			*out = append(*out, f...)
 		}
 	case "object_creation_expression":
-		*out = append(*out, evalNew(n, src, path)...)
+		*out = append(*out, evalNew(n, src, path, df)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
-		walk(n.NamedChild(i), src, path, out)
+		walk(n.NamedChild(i), src, path, df, out)
 	}
 }
 
-// evalNew flags hardcoded keys (new SecretKeySpec(literal, "ALG")) and static IVs
-// (new IvParameterSpec(literal)) — cases where a constructor argument is a literal.
-func evalNew(node *sitter.Node, src []byte, path string) []rules.Finding {
+// evalNew flags key/IV constructor misuse: a hardcoded literal, or (via dataflow)
+// a value drawn from a non-cryptographic PRNG — for SecretKeySpec and IvParameterSpec.
+func evalNew(node *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
 	t := node.ChildByFieldName("type")
 	args := node.ChildByFieldName("arguments")
 	if t == nil || args == nil {
 		return nil
 	}
+	arg0 := args.NamedChild(0)
+
 	var m rules.Match
 	switch afterLastDot(t.Content(src)) {
 	case "SecretKeySpec":
-		if isLiteralBytes(args.NamedChild(0)) {
-			m = rules.HardcodedKey(stringArgAt(args, 1, src))
+		algo := stringArgAt(args, 1, src)
+		switch {
+		case isLiteralBytes(arg0):
+			m = rules.HardcodedKey(algo)
+		case isWeakRandomVar(arg0, src, df, node):
+			m = rules.WeakPRNG(algo)
 		}
 	case "IvParameterSpec":
-		if isLiteralBytes(args.NamedChild(0)) {
+		switch {
+		case isLiteralBytes(arg0):
 			m = rules.StaticIV("")
+		case isWeakRandomVar(arg0, src, df, node):
+			m = rules.WeakPRNG("")
 		}
 	}
 	if m.RuleID == "" {
@@ -78,6 +90,13 @@ func evalNew(node *sitter.Node, src []byte, path string) []rules.Finding {
 		Line: int(pt.Row) + 1, Column: int(pt.Column) + 1,
 		Evidence: snippet(node, src),
 	}}
+}
+
+// isWeakRandomVar reports whether arg is an identifier the dataflow pass marked as
+// holding output from a non-cryptographic PRNG.
+func isWeakRandomVar(arg *sitter.Node, src []byte, df *dataflow, node *sitter.Node) bool {
+	return arg != nil && arg.Type() == "identifier" &&
+		df.weakRandom[varKey(enclosingScope(node), arg.Content(src))]
 }
 
 // isLiteralBytes reports whether a node is literal key material: a string literal
@@ -97,6 +116,26 @@ func isLiteralBytes(n *sitter.Node) bool {
 	return false
 }
 
+// assignedVar returns the name of the variable a call's result is assigned to,
+// looking at the immediate declaration or assignment, or "" if not assigned.
+func assignedVar(call *sitter.Node, src []byte) string {
+	p := call.Parent()
+	if p == nil {
+		return ""
+	}
+	switch p.Type() {
+	case "variable_declarator":
+		if n := p.ChildByFieldName("name"); n != nil {
+			return n.Content(src)
+		}
+	case "assignment_expression":
+		if l := p.ChildByFieldName("left"); l != nil && l.Type() == "identifier" {
+			return l.Content(src)
+		}
+	}
+	return ""
+}
+
 // stringArgAt returns the unquoted value of the i-th argument if it is a string
 // literal, else "".
 func stringArgAt(args *sitter.Node, i int, src []byte) string {
@@ -110,7 +149,7 @@ func stringArgAt(args *sitter.Node, i int, src []byte) string {
 }
 
 // evalCall inspects a method_invocation for a recognized getInstance call.
-func evalCall(call *sitter.Node, src []byte, path string) ([]rules.Finding, bool) {
+func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) ([]rules.Finding, bool) {
 	name := call.ChildByFieldName("name")
 	if name == nil || name.Content(src) != "getInstance" {
 		return nil, false
@@ -132,6 +171,15 @@ func evalCall(call *sitter.Node, src []byte, path string) ([]rules.Finding, bool
 	matches := rules.Evaluate(className, arg)
 	if len(matches) == 0 {
 		return nil, false
+	}
+
+	// Link a KeyPairGenerator's key size from a later var.initialize(bits) call.
+	if className == "KeyPairGenerator" {
+		if v := assignedVar(call, src); v != "" {
+			if bits := df.keySize[varKey(enclosingScope(call), v)]; bits > 0 {
+				matches = rules.AnnotateKey(matches, bits, "")
+			}
+		}
 	}
 
 	pt := call.StartPoint()

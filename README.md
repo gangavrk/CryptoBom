@@ -16,7 +16,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 |---|---|
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
-| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces |
+| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG (Java) |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -39,15 +39,21 @@ guessed at.
 recorded in the CBOM (`parameterSetIdentifier`, `ellipticCurve`, `classicalSecurityLevel`)
 and the asset is named accordingly (e.g. `RSA-2048`). Classically weak parameters
 (< 112-bit security, e.g. RSA-1024 or P-192) raise an additional finding on top of the
-quantum-vulnerability one. (Java key sizes live on a separate `.initialize(n)` call and
-need dataflow we don't do yet.)
+quantum-vulnerability one. For **Java**, the size lives on a separate `kpg.initialize(n)`
+call; a lightweight intra-procedural dataflow pass links it back to the `getInstance`.
 
 **Misuse.** Hardcoded keys and static IVs/nonces are flagged only when a *literal* is
 passed where a key/IV is expected — `new SecretKeySpec("…".getBytes(), "AES")`,
 `AES.new(b"…", …)`, `aes.NewCipher([]byte("…"))`, `new IvParameterSpec("…".getBytes())`,
 `cipher.NewCBCEncrypter(block, []byte("…"))` — so a key/IV held in a variable is never
-flagged. Weak-PRNG and non-constant-time-comparison detection are deliberately deferred:
-they need taint/dataflow to flag precisely, and a context-free rule would be noisy.
+flagged.
+
+For **Java**, a value drawn from a non-cryptographic PRNG (`java.util.Random`) is flagged
+*only when it reaches a key/IV sink* (`new SecretKeySpec(buf, …)` / `new IvParameterSpec(buf)`
+where `buf` was filled by `random.nextBytes(buf)`). Requiring the crypto sink keeps it
+precise: ordinary non-crypto `Random` use never triggers, and `SecureRandom` is never
+flagged. Weak-PRNG taint for Python/Go and non-constant-time comparison detection are not
+done yet (the latter needs MAC-source taint, the highest false-positive risk).
 
 ## Build
 

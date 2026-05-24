@@ -17,6 +17,23 @@ func HardcodedKey(algo string) Match {
 	}
 }
 
+// WeakPRNG is the misuse match for key/IV material drawn from a non-cryptographic
+// PRNG (e.g. java.util.Random). algo is the cipher when known, otherwise "".
+func WeakPRNG(algo string) Match {
+	if algo == "" {
+		algo = "key/IV material"
+	}
+	return Match{
+		RuleID:      "CB-MISUSE-WEAK-PRNG",
+		Title:       "Key/IV material from a non-cryptographic PRNG",
+		Severity:    SeverityHigh,
+		Category:    CategoryMisuse,
+		Algorithm:   algo,
+		Detail:      "non-CSPRNG source",
+		Remediation: "Use a CSPRNG (e.g. java.security.SecureRandom) for key and IV material.",
+	}
+}
+
 // StaticIV is the misuse match for a literal/static IV or nonce. algo is the
 // cipher when known, otherwise "".
 func StaticIV(algo string) Match {

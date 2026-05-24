@@ -7,7 +7,9 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.security.Signature;
+import java.util.Random;
 
 // Sample for cryptobom regression testing. Mixes vulnerable, weak, misused,
 // strong, and unanalyzable (non-literal) cryptographic usage.
@@ -35,6 +37,26 @@ public class CryptoSamples {
         IvParameterSpec staticIv = new IvParameterSpec("0123456789abcdef".getBytes());
         // Variable IV — must NOT be flagged.
         IvParameterSpec dynamicIv = new IvParameterSpec(iv);
+    }
+
+    void keySizesAndPrng() throws Exception {
+        // Key size linked from a later initialize() call (intra-procedural dataflow).
+        KeyPairGenerator weakRsa = KeyPairGenerator.getInstance("RSA");
+        weakRsa.initialize(1024);
+        KeyPairGenerator strongRsa = KeyPairGenerator.getInstance("RSA");
+        strongRsa.initialize(3072);
+
+        // Key material from a non-cryptographic PRNG — flagged via sink taint.
+        byte[] weakKey = new byte[16];
+        Random rng = new Random();
+        rng.nextBytes(weakKey);
+        SecretKeySpec fromWeak = new SecretKeySpec(weakKey, "AES");
+
+        // SecureRandom is correct — must NOT be flagged.
+        byte[] goodKey = new byte[16];
+        SecureRandom sr = new SecureRandom();
+        sr.nextBytes(goodKey);
+        SecretKeySpec fromSecure = new SecretKeySpec(goodKey, "AES");
     }
 
     void strongOrInventory() throws Exception {
