@@ -21,7 +21,7 @@ jobs:
       - id: cryptobom
         uses: ./
         with:
-          path: testdata/java
+          path: testdata
           sarif-file: cryptobom.sarif
           cbom-file: cryptobom.cbom.json
 
