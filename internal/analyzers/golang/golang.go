@@ -47,6 +47,7 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 		if bits, curve := keyParams(pkgPath, sel.Sel.Name, call); bits > 0 || curve != "" {
 			matches = rules.AnnotateKey(matches, bits, curve)
 		}
+		matches = append(matches, goMisuse(pkgPath, sel.Sel.Name, call)...)
 		for _, m := range matches {
 			pos := fset.Position(call.Pos())
 			findings = append(findings, rules.Finding{
@@ -60,6 +61,58 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 		return true
 	})
 	return findings, nil
+}
+
+var goStaticIVFuncs = map[string]bool{
+	"NewCBCEncrypter": true, "NewCBCDecrypter": true, "NewCTR": true,
+	"NewOFB": true, "NewCFBEncrypter": true, "NewCFBDecrypter": true,
+}
+
+// goMisuse flags hardcoded keys (literal passed to aes/des/rc4.NewCipher) and
+// static IVs (literal passed as the IV to crypto/cipher stream/CBC constructors).
+func goMisuse(pkgPath, fn string, call *ast.CallExpr) []rules.Match {
+	switch pkgPath {
+	case "crypto/aes", "crypto/des", "crypto/rc4":
+		if (fn == "NewCipher" || fn == "NewTripleDESCipher") &&
+			len(call.Args) >= 1 && isLiteralBytes(call.Args[0]) {
+			return []rules.Match{rules.HardcodedKey(goCipherName(pkgPath, fn))}
+		}
+	case "crypto/cipher":
+		if goStaticIVFuncs[fn] && len(call.Args) >= 2 && isLiteralBytes(call.Args[1]) {
+			return []rules.Match{rules.StaticIV("")}
+		}
+	}
+	return nil
+}
+
+// isLiteralBytes reports whether e is a string literal or a []byte("...") conversion.
+func isLiteralBytes(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.BasicLit:
+		return x.Kind == token.STRING
+	case *ast.CallExpr:
+		if _, ok := x.Fun.(*ast.ArrayType); ok && len(x.Args) == 1 {
+			if lit, ok := x.Args[0].(*ast.BasicLit); ok {
+				return lit.Kind == token.STRING
+			}
+		}
+	}
+	return false
+}
+
+func goCipherName(pkgPath, fn string) string {
+	switch pkgPath {
+	case "crypto/aes":
+		return "AES"
+	case "crypto/rc4":
+		return "RC4"
+	case "crypto/des":
+		if fn == "NewTripleDESCipher" {
+			return "3DES"
+		}
+		return "DES"
+	}
+	return ""
 }
 
 // keyParams extracts an asymmetric key size or curve from a keygen call.

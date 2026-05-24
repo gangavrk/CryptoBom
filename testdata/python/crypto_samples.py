@@ -32,6 +32,13 @@ def weak_and_misused(key):
     tdes = algorithms.TripleDES(key)
 
 
+def hardcoded():
+    # Hardcoded key and static IV — literal material in source.
+    enc = AES.new(b"0123456789abcdef", AES.MODE_CBC, iv=b"0000000000000000")
+    sym = algorithms.AES(b"hardcoded-key-16")
+    static = modes.CBC(b"0000000000000000")
+
+
 def strong_or_inventory(key, iv):
     # Good usage — must NOT be flagged as a problem.
     digest = hashlib.sha256()

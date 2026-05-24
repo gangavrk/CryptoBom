@@ -4,6 +4,8 @@
 package samples
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/des"
 	"crypto/ecdsa"
 	"crypto/ed25519"
@@ -34,6 +36,12 @@ func weak(key, msg []byte) {
 	_, _ = des.NewCipher(key)
 	_, _ = des.NewTripleDESCipher(key)
 	_, _ = rc4.NewCipher(key)
+}
+
+func hardcoded() {
+	// Hardcoded key and static IV — literal material in source.
+	block, _ := aes.NewCipher([]byte("hardcoded-key-16"))
+	_ = cipher.NewCBCEncrypter(block, []byte("0123456789abcdef"))
 }
 
 func strongOrInventory(msg []byte) {

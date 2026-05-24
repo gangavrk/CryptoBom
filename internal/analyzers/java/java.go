@@ -37,14 +37,76 @@ func walk(n *sitter.Node, src []byte, path string, out *[]rules.Finding) {
 	if n == nil {
 		return
 	}
-	if n.Type() == "method_invocation" {
+	switch n.Type() {
+	case "method_invocation":
 		if f, ok := evalCall(n, src, path); ok {
 			*out = append(*out, f...)
 		}
+	case "object_creation_expression":
+		*out = append(*out, evalNew(n, src, path)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, out)
 	}
+}
+
+// evalNew flags hardcoded keys (new SecretKeySpec(literal, "ALG")) and static IVs
+// (new IvParameterSpec(literal)) — cases where a constructor argument is a literal.
+func evalNew(node *sitter.Node, src []byte, path string) []rules.Finding {
+	t := node.ChildByFieldName("type")
+	args := node.ChildByFieldName("arguments")
+	if t == nil || args == nil {
+		return nil
+	}
+	var m rules.Match
+	switch afterLastDot(t.Content(src)) {
+	case "SecretKeySpec":
+		if isLiteralBytes(args.NamedChild(0)) {
+			m = rules.HardcodedKey(stringArgAt(args, 1, src))
+		}
+	case "IvParameterSpec":
+		if isLiteralBytes(args.NamedChild(0)) {
+			m = rules.StaticIV("")
+		}
+	}
+	if m.RuleID == "" {
+		return nil
+	}
+	pt := node.StartPoint()
+	return []rules.Finding{{
+		Match: m, File: path,
+		Line: int(pt.Row) + 1, Column: int(pt.Column) + 1,
+		Evidence: snippet(node, src),
+	}}
+}
+
+// isLiteralBytes reports whether a node is literal key material: a string literal
+// or a call on one (e.g. "secret".getBytes() / "secret".toCharArray()).
+func isLiteralBytes(n *sitter.Node) bool {
+	if n == nil {
+		return false
+	}
+	switch n.Type() {
+	case "string_literal":
+		return true
+	case "method_invocation":
+		if obj := n.ChildByFieldName("object"); obj != nil && obj.Type() == "string_literal" {
+			return true
+		}
+	}
+	return false
+}
+
+// stringArgAt returns the unquoted value of the i-th argument if it is a string
+// literal, else "".
+func stringArgAt(args *sitter.Node, i int, src []byte) string {
+	if args == nil || i >= int(args.NamedChildCount()) {
+		return ""
+	}
+	if a := args.NamedChild(i); a.Type() == "string_literal" {
+		return unquote(a.Content(src))
+	}
+	return ""
 }
 
 // evalCall inspects a method_invocation for a recognized getInstance call.

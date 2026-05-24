@@ -60,11 +60,12 @@ func evalCall(call *sitter.Node, src []byte, path string) []rules.Finding {
 
 	args := call.ChildByFieldName("arguments")
 	matches := rules.PyEvaluate(obj, attr, firstString(args, src), hasModeECB(args, src))
-	if len(matches) == 0 {
-		return nil
-	}
 	if bits, curve := keyParams(obj, attr, args, src); bits > 0 || curve != "" {
 		matches = rules.AnnotateKey(matches, bits, curve)
+	}
+	matches = append(matches, pyMisuse(obj, attr, args, src)...)
+	if len(matches) == 0 {
+		return nil
 	}
 
 	pt := call.StartPoint()
@@ -138,6 +139,63 @@ func hasModeECB(args *sitter.Node, src []byte) bool {
 	}
 	scan(args)
 	return found
+}
+
+var pyCipherCtor = map[string]bool{
+	"AES": true, "DES": true, "DES3": true, "ARC4": true, "ARC2": true,
+	"Blowfish": true, "ChaCha20": true,
+}
+
+var pyCipherClass = map[string]bool{
+	"AES": true, "Camellia": true, "TripleDES": true, "ARC4": true,
+	"Blowfish": true, "IDEA": true, "SEED": true, "SM4": true, "ChaCha20": true,
+}
+
+var pyStaticIVMode = map[string]bool{"CBC": true, "CTR": true, "OFB": true, "CFB": true}
+
+// pyMisuse flags hardcoded keys and static IVs — a literal passed where a key,
+// IV, or nonce is expected.
+func pyMisuse(obj, attr string, args *sitter.Node, src []byte) []rules.Match {
+	var out []rules.Match
+	switch {
+	case attr == "new" && pyCipherCtor[obj]: // pycryptodome: AES.new(b"...", mode, iv=b"...")
+		if firstArgIsString(args) {
+			out = append(out, rules.HardcodedKey(pyCipherName(obj)))
+		}
+		if keywordIsString(args, "iv", src) || keywordIsString(args, "nonce", src) {
+			out = append(out, rules.StaticIV(pyCipherName(obj)))
+		}
+	case obj == "algorithms" && pyCipherClass[attr]: // cryptography: algorithms.AES(b"...")
+		if firstArgIsString(args) {
+			out = append(out, rules.HardcodedKey(attr))
+		}
+	case obj == "modes" && pyStaticIVMode[attr]: // cryptography: modes.CBC(b"...")
+		if firstArgIsString(args) {
+			out = append(out, rules.StaticIV(""))
+		}
+	}
+	return out
+}
+
+func pyCipherName(obj string) string {
+	switch obj {
+	case "DES3":
+		return "3DES"
+	case "ARC4":
+		return "RC4"
+	case "ARC2":
+		return "RC2"
+	}
+	return obj
+}
+
+func firstArgIsString(args *sitter.Node) bool {
+	return args != nil && args.NamedChildCount() > 0 && args.NamedChild(0).Type() == "string"
+}
+
+func keywordIsString(args *sitter.Node, name string, src []byte) bool {
+	v := keywordValue(args, name, src)
+	return v != nil && v.Type() == "string"
 }
 
 // keyParams extracts an asymmetric key size or curve from a keygen call,

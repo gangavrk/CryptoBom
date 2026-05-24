@@ -3,6 +3,8 @@ package com.example.demo;
 import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
 import java.security.Signature;
@@ -25,6 +27,14 @@ public class CryptoSamples {
         Cipher des = Cipher.getInstance("DES");
         Cipher aesEcb = Cipher.getInstance("AES/ECB/PKCS5Padding");
         MessageDigest md5 = MessageDigest.getInstance("MD5");
+    }
+
+    void hardcoded(byte[] iv) throws Exception {
+        // Hardcoded key and static IV — literal material in source.
+        SecretKeySpec key = new SecretKeySpec("hardcoded-demo-key".getBytes(), "AES");
+        IvParameterSpec staticIv = new IvParameterSpec("0123456789abcdef".getBytes());
+        // Variable IV — must NOT be flagged.
+        IvParameterSpec dynamicIv = new IvParameterSpec(iv);
     }
 
     void strongOrInventory() throws Exception {
