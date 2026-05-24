@@ -49,6 +49,16 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 			return true
 		}
 
+		// TLS version constants: tls.VersionTLS10, tls.VersionSSL30, ...
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if pkg, ok := sel.X.(*ast.Ident); ok && imports[pkg.Name] == "crypto/tls" {
+				if tok := goTLSConst[sel.Sel.Name]; tok != "" {
+					add(rules.EvalProtocol(tok), sel)
+				}
+			}
+			return true
+		}
+
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -76,6 +86,15 @@ func Analyze(filename string, src []byte) ([]rules.Finding, error) {
 		return true
 	})
 	return findings, nil
+}
+
+// goTLSConst maps crypto/tls version constants to a protocol token.
+var goTLSConst = map[string]string{
+	"VersionSSL30": "SSLv3",
+	"VersionTLS10": "TLSv1.0",
+	"VersionTLS11": "TLSv1.1",
+	"VersionTLS12": "TLSv1.2",
+	"VersionTLS13": "TLSv1.3",
 }
 
 // goTimingSink flags bytes.Equal / reflect.DeepEqual on a MAC/digest operand.

@@ -46,6 +46,8 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 		*out = append(*out, evalCall(n, src, path, df)...)
 	case "comparison_operator":
 		*out = append(*out, evalComparison(n, src, path, df)...)
+	case "attribute":
+		*out = append(*out, evalProtocolAttr(n, src, path)...)
 	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, df, out)
@@ -74,6 +76,55 @@ func evalComparison(node *sitter.Node, src []byte, path string, df *dataflow) []
 		Column:   int(pt.Column) + 1,
 		Evidence: snippet(node, src),
 	}}
+}
+
+// evalProtocolAttr flags ssl.PROTOCOL_TLSv1 / ssl.TLSVersion.TLSv1 protocol constants.
+func evalProtocolAttr(node *sitter.Node, src []byte, path string) []rules.Finding {
+	obj := node.ChildByFieldName("object")
+	attr := node.ChildByFieldName("attribute")
+	if attr == nil || obj == nil {
+		return nil
+	}
+	name := attr.Content(src)
+	var tok string
+	switch {
+	case obj.Type() == "identifier" && obj.Content(src) == "ssl" && strings.HasPrefix(name, "PROTOCOL_"):
+		tok = pyTLSToken(name) // ssl.PROTOCOL_TLSv1
+	case obj.Type() == "attribute" && simpleName(obj, src) == "TLSVersion":
+		tok = pyTLSToken(name) // ssl.TLSVersion.TLSv1
+	}
+	if tok == "" {
+		return nil
+	}
+	pt := node.StartPoint()
+	out := make([]rules.Finding, 0, 1)
+	for _, m := range rules.EvalProtocol(tok) {
+		out = append(out, rules.Finding{
+			Match: m, File: path,
+			Line: int(pt.Row) + 1, Column: int(pt.Column) + 1, Evidence: snippet(node, src),
+		})
+	}
+	return out
+}
+
+func pyTLSToken(name string) string {
+	switch strings.TrimPrefix(name, "PROTOCOL_") {
+	case "SSLv2":
+		return "SSLv2"
+	case "SSLv3":
+		return "SSLv3"
+	case "TLSv1":
+		return "TLSv1.0"
+	case "TLSv1_1":
+		return "TLSv1.1"
+	case "TLSv1_2":
+		return "TLSv1.2"
+	case "TLSv1_3":
+		return "TLSv1.3"
+	case "TLS", "TLS_CLIENT", "TLS_SERVER":
+		return "TLS"
+	}
+	return ""
 }
 
 func isMacOperand(n *sitter.Node, src []byte, df *dataflow, scope uint32) bool {

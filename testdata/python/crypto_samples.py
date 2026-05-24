@@ -8,6 +8,13 @@ import hashlib
 import hmac
 import random
 import secrets
+import ssl
+
+
+def tls_setup():
+    # TLS protocol constants/enums: deprecated flagged, modern inventoried.
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec

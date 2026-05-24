@@ -99,13 +99,27 @@ func evalNew(node *sitter.Node, src []byte, path string) []rules.Finding {
 	return findingsFrom(matches, node, src, path)
 }
 
-// evalMemberAccess flags CipherMode.ECB.
+var csTLSConst = map[string]string{
+	"Ssl2": "SSLv2", "Ssl3": "SSLv3", "Tls": "TLSv1.0",
+	"Tls11": "TLSv1.1", "Tls12": "TLSv1.2", "Tls13": "TLSv1.3",
+}
+
+// evalMemberAccess flags CipherMode.ECB and SslProtocols.Tls11 / .Ssl3 / ... .
 func evalMemberAccess(node *sitter.Node, src []byte, path string) []rules.Finding {
 	expr := node.ChildByFieldName("expression")
 	name := node.ChildByFieldName("name")
-	if expr != nil && expr.Type() == "identifier" && expr.Content(src) == "CipherMode" &&
-		name != nil && name.Content(src) == "ECB" {
-		return findingsFrom(rules.CSharpCipherMode("ECB"), node, src, path)
+	if expr == nil || name == nil || expr.Type() != "identifier" {
+		return nil
+	}
+	switch expr.Content(src) {
+	case "CipherMode":
+		if name.Content(src) == "ECB" {
+			return findingsFrom(rules.CSharpCipherMode("ECB"), node, src, path)
+		}
+	case "SslProtocols":
+		if tok := csTLSConst[name.Content(src)]; tok != "" {
+			return findingsFrom(rules.EvalProtocol(tok), node, src, path)
+		}
 	}
 	return nil
 }

@@ -19,8 +19,15 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/subtle"
+	"crypto/tls"
 	mrand "math/rand"
 )
+
+func tlsConfig() {
+	// TLS version constants: weak floor flagged, modern one inventoried.
+	_ = &tls.Config{MinVersion: tls.VersionTLS10}
+	_ = &tls.Config{MinVersion: tls.VersionTLS13}
+}
 
 func vulnerable(msg []byte) {
 	// Quantum-vulnerable asymmetric crypto (key sizes / curves captured).

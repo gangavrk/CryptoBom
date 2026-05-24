@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Net.Security;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -61,6 +63,13 @@ namespace Example
             }
             // Non-crypto comparison — must NOT be flagged.
             return msg.SequenceEqual(provided);
+        }
+
+        void TlsSetup(SslStream stream, byte[] cert)
+        {
+            // TLS protocol enum members: deprecated flagged, modern inventoried.
+            var legacy = SslProtocols.Tls11;
+            var modern = SslProtocols.Tls13;
         }
 
         void StrongOrInventory()
