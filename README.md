@@ -7,14 +7,14 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java** and **Python** source and emits a CBOM, a SARIF report, and a terminal report.
-> Findings from both languages merge into one CBOM. A Go analyzer is planned next.
+> **Java**, **Python**, and **Go** source and emits a CBOM, a SARIF report, and a terminal
+> report. Findings from all languages merge into one CBOM.
 
-## What it detects today (Java & Python)
+## What it detects today (Java, Python & Go)
 
 | Category | Examples |
 |---|---|
-| Quantum-vulnerable | RSA, ECDSA, ECDH, DSA, DH key generation / signatures / agreement |
+| Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4 |
 | Misuse | ECB mode on block ciphers |
 
@@ -26,6 +26,9 @@ Detection is precise by design. We favor **zero false positives over completenes
 - **Python** — qualified calls from the two dominant libraries: pyca/cryptography
   (`hashes.SHA1()`, `modes.ECB()`, `rsa.generate_private_key()`, …) and pycryptodome
   (`hashlib.md5()`, `AES.new(key, AES.MODE_ECB)`, `RSA.generate()`, …).
+- **Go** — standard-library crypto packages resolved through imports
+  (`crypto/md5`, `crypto/des`, `crypto/rsa`, `crypto/ecdsa`, `crypto/ed25519`, …).
+  No ECB rule — Go's stdlib deliberately omits ECB.
 
 Unqualified or non-literal calls (e.g. `hashlib.new(var)`) are left alone rather than
 guessed at.
