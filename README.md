@@ -120,6 +120,22 @@ steps:
 See [.github/workflows/scan.yml](.github/workflows/scan.yml) for the working
 example this repo runs against its own `testdata/`.
 
+## Releases
+
+Pushing a version tag runs [.github/workflows/release.yml](.github/workflows/release.yml):
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+It builds platform binaries on native runners (cgo can't be cleanly
+cross-compiled), attaches them with `checksums.txt` to a GitHub Release, and
+pushes a versioned container image to GHCR (`ghcr.io/<owner>/cryptobom:<tag>` and
+`:latest`). The binary and image report the tag via `cryptobom version`.
+
+Current matrix: `linux/amd64`, `darwin/amd64`, `darwin/arm64`. (Windows and
+`linux/arm64` can be added as matrix entries when needed.)
+
 ## License
 
 Apache License 2.0 — see [LICENSE](LICENSE).

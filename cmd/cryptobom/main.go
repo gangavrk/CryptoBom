@@ -18,12 +18,14 @@ import (
 	"github.com/cryptobom/cryptobom/internal/report"
 	"github.com/cryptobom/cryptobom/internal/rules"
 	"github.com/cryptobom/cryptobom/internal/sarif"
+	"github.com/cryptobom/cryptobom/internal/version"
 )
 
 const usage = `cryptobom — cryptographic discovery for the post-quantum transition
 
 usage:
   cryptobom scan [flags] [path]
+  cryptobom version
 
 flags:
   --format string   stdout format: terminal | cbom | sarif  (default "terminal")
@@ -53,6 +55,10 @@ func main() {
 func run(args []string) error {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Print(usage)
+		return nil
+	}
+	if args[0] == "version" || args[0] == "--version" || args[0] == "-v" {
+		fmt.Printf("cryptobom %s\n", version.Version)
 		return nil
 	}
 	if args[0] != "scan" {

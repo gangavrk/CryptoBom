@@ -9,12 +9,12 @@ import (
 	"sort"
 
 	"github.com/cryptobom/cryptobom/internal/rules"
+	"github.com/cryptobom/cryptobom/internal/version"
 )
 
 const (
-	schemaURI   = "https://json.schemastore.org/sarif-2.1.0.json"
-	toolName    = "cryptobom"
-	toolVersion = "0.1.0-dev"
+	schemaURI = "https://json.schemastore.org/sarif-2.1.0.json"
+	toolName  = "cryptobom"
 )
 
 type document struct {
@@ -134,7 +134,7 @@ func build(findings []rules.Finding) document {
 		Schema:  schemaURI,
 		Version: "2.1.0",
 		Runs: []run{{
-			Tool:    tool{Driver: driver{Name: toolName, Version: toolVersion, Rules: descriptors}},
+			Tool:    tool{Driver: driver{Name: toolName, Version: version.Version, Rules: descriptors}},
 			Results: results,
 		}},
 	}

@@ -14,9 +14,8 @@ import (
 	cdx "github.com/CycloneDX/cyclonedx-go"
 
 	"github.com/cryptobom/cryptobom/internal/rules"
+	"github.com/cryptobom/cryptobom/internal/version"
 )
-
-const toolVersion = "0.1.0-dev"
 
 // Emit writes a CycloneDX CBOM (JSON) for findings to w. target names the
 // scanned path and is recorded as the BOM's subject component.
@@ -37,7 +36,7 @@ func Build(target string, findings []rules.Finding) *cdx.BOM {
 			Components: &[]cdx.Component{{
 				Type:    cdx.ComponentTypeApplication,
 				Name:    "cryptobom",
-				Version: toolVersion,
+				Version: version.Version,
 			}},
 		},
 		Component: &cdx.Component{
