@@ -58,6 +58,7 @@ type Finding struct {
 	Line     int // 1-based
 	Column   int // 1-based
 	Evidence string
+	Scope    string // "" for production code, "test" for test code
 }
 
 // factories are the JCA entry points we recognize. The analyzer only calls

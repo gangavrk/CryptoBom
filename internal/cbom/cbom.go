@@ -54,6 +54,7 @@ func Build(target string, findings []rules.Finding) *cdx.BOM {
 type group struct {
 	key   string
 	match rules.Match
+	scope string
 	occ   []cdx.EvidenceOccurrence
 }
 
@@ -62,9 +63,12 @@ func buildComponents(findings []rules.Finding) []cdx.Component {
 	var order []string
 	for _, f := range findings {
 		key := f.RuleID + "|" + f.Algorithm + "|" + f.Mode + "|" + paramSet(f.Match)
+		if f.Scope != "" {
+			key += "|" + f.Scope // keep test assets in their own component
+		}
 		g, ok := byKey[key]
 		if !ok {
-			g = &group{key: key, match: f.Match}
+			g = &group{key: key, match: f.Match, scope: f.Scope}
 			byKey[key] = g
 			order = append(order, key)
 		}
@@ -101,6 +105,9 @@ func componentFor(g *group) cdx.Component {
 		{Name: "cryptobom:title", Value: m.Title},
 		{Name: "cryptobom:severity", Value: string(m.Severity)},
 		{Name: "cryptobom:category", Value: string(m.Category)},
+	}
+	if g.scope != "" {
+		props = append(props, cdx.Property{Name: "cryptobom:scope", Value: g.scope})
 	}
 	if m.Detail != "" {
 		props = append(props, cdx.Property{Name: "cryptobom:detail", Value: m.Detail})

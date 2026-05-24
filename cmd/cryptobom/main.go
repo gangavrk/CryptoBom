@@ -242,28 +242,47 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".yaml")
 }
 
-// analyzeFile dispatches to the analyzer for the file's language.
+// analyzeFile dispatches to the analyzer for the file's language and tags findings
+// from test code with the "test" scope.
 func analyzeFile(p string) ([]rules.Finding, error) {
 	src, err := os.ReadFile(p)
 	if err != nil {
 		return nil, err
 	}
+	var findings []rules.Finding
 	switch {
 	case strings.HasSuffix(p, ".java"):
-		return javaanalyzer.Analyze(p, src)
+		findings, err = javaanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".py"):
-		return pythonanalyzer.Analyze(p, src)
+		findings, err = pythonanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".go"):
-		return golanganalyzer.Analyze(p, src)
+		findings, err = golanganalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".kt"), strings.HasSuffix(p, ".kts"):
-		return kotlinanalyzer.Analyze(p, src)
+		findings, err = kotlinanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".cs"):
-		return csharpanalyzer.Analyze(p, src)
+		findings, err = csharpanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".properties"),
 		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"):
-		return configanalyzer.Analyze(p, src)
+		findings, err = configanalyzer.Analyze(p, src)
 	}
-	return nil, nil
+	if err == nil && isTestPath(p) {
+		for i := range findings {
+			findings[i].Scope = "test"
+		}
+	}
+	return findings, err
+}
+
+// isTestPath reports whether a file path is test code — either a test directory
+// segment or a test file name.
+func isTestPath(p string) bool {
+	segs := strings.Split(filepath.ToSlash(p), "/")
+	for _, s := range segs[:len(segs)-1] {
+		if isTestDir(s) {
+			return true
+		}
+	}
+	return isTestFile(filepath.Base(p))
 }
 
 func isTerminal(f *os.File) bool {

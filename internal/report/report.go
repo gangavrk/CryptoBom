@@ -65,7 +65,11 @@ func Write(w io.Writer, target string, findings []rules.Finding, color bool) {
 	}
 	for _, f := range problems {
 		sevCol := c.sevColor(f.Severity)
-		fmt.Fprintf(w, "  %s%-8s%s %s\n", sevCol, sevLabel(f.Severity), c.reset, f.Title)
+		scope := ""
+		if f.Scope == "test" {
+			scope = fmt.Sprintf(" %s[test]%s", c.dim, c.reset)
+		}
+		fmt.Fprintf(w, "  %s%-8s%s %s%s\n", sevCol, sevLabel(f.Severity), c.reset, f.Title, scope)
 		fmt.Fprintf(w, "    %s%s:%d%s  %s%s%s\n", c.dim, f.File, f.Line, c.reset, c.dim, f.Evidence, c.reset)
 		fmt.Fprintf(w, "    %srule %s · %s%s\n", c.dim, f.RuleID, f.Category, c.reset)
 		if f.Remediation != "" {

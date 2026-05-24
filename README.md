@@ -115,7 +115,9 @@ go build -o cryptobom ./cmd/cryptobom
 cryptobom scan ./path/to/java/project
 
 # Test code (test/ dirs, *_test.go, *Test.java, …) is skipped by default.
-# Include it with --include-tests:
+# Include it with --include-tests; those findings are tagged with the "test"
+# scope (a [test] marker in the terminal, cryptobom:scope=test in the CBOM, and
+# properties.scope=test in SARIF) so they can be filtered.
 cryptobom scan --include-tests ./path/to/java/project
 
 # Emit a CycloneDX CBOM (JSON) to stdout

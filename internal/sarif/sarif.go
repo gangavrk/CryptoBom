@@ -56,11 +56,12 @@ type text struct {
 }
 
 type result struct {
-	RuleID    string     `json:"ruleId"`
-	RuleIndex int        `json:"ruleIndex"`
-	Level     string     `json:"level"`
-	Message   text       `json:"message"`
-	Locations []location `json:"locations"`
+	RuleID     string            `json:"ruleId"`
+	RuleIndex  int               `json:"ruleIndex"`
+	Level      string            `json:"level"`
+	Message    text              `json:"message"`
+	Locations  []location        `json:"locations"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 type location struct {
@@ -112,7 +113,7 @@ func build(findings []rules.Finding) document {
 
 	results := make([]result, 0, len(problems))
 	for _, f := range problems {
-		results = append(results, result{
+		r := result{
 			RuleID:    f.RuleID,
 			RuleIndex: index[f.RuleID],
 			Level:     level(f.Severity),
@@ -127,7 +128,11 @@ func build(findings []rules.Finding) document {
 					},
 				},
 			}},
-		})
+		}
+		if f.Scope != "" {
+			r.Properties = map[string]string{"scope": f.Scope}
+		}
+		results = append(results, r)
 	}
 
 	return document{
