@@ -114,6 +114,10 @@ go build -o cryptobom ./cmd/cryptobom
 # Human-readable terminal report (default)
 cryptobom scan ./path/to/java/project
 
+# Test code (test/ dirs, *_test.go, *Test.java, …) is skipped by default.
+# Include it with --include-tests:
+cryptobom scan --include-tests ./path/to/java/project
+
 # Emit a CycloneDX CBOM (JSON) to stdout
 cryptobom scan --format cbom ./path/to/java/project > cbom.json
 

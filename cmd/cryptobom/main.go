@@ -34,6 +34,7 @@ flags:
   --format string   stdout format: terminal | cbom | sarif  (default "terminal")
   --cbom file       also write a CycloneDX CBOM to file
   --sarif file      also write a SARIF 2.1.0 report to file
+  --include-tests   also scan test code (test/ dirs, *_test.go, *Test.java, …)
   --no-color        disable ANSI colors in terminal output
 
 The --cbom and --sarif flags write to files independently of --format, so a
@@ -70,6 +71,7 @@ func run(args []string) error {
 
 	format := "terminal"
 	noColor := false
+	includeTests := false
 	var path, cbomPath, sarifPath string
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
@@ -78,6 +80,8 @@ func run(args []string) error {
 		switch {
 		case a == "--no-color":
 			noColor = true
+		case a == "--include-tests":
+			includeTests = true
 		case a == "--format" || strings.HasPrefix(a, "--format="):
 			format, i, err = flagValue("--format", rest, i)
 		case a == "--cbom" || strings.HasPrefix(a, "--cbom="):
@@ -100,7 +104,7 @@ func run(args []string) error {
 		return fmt.Errorf("invalid --format %q (want terminal, cbom, or sarif)", format)
 	}
 
-	findings, err := scan(path)
+	findings, err := scan(path, includeTests)
 	if err != nil {
 		return err
 	}
@@ -156,8 +160,10 @@ func emitToFile(path string, emit func(io.Writer) error) (err error) {
 	return emit(f)
 }
 
-// scan walks path for supported source files and aggregates findings.
-func scan(path string) ([]rules.Finding, error) {
+// scan walks path for supported source files and aggregates findings. Test code is
+// skipped unless includeTests is set; the path given on the command line is always
+// scanned (so pointing directly at a test dir/file still works).
+func scan(path string, includeTests bool) ([]rules.Finding, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -175,9 +181,15 @@ func scan(path string) ([]rules.Finding, error) {
 			if skipDirs[d.Name()] {
 				return fs.SkipDir
 			}
+			if !includeTests && p != path && isTestDir(d.Name()) {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if !supported(d.Name()) {
+			return nil
+		}
+		if !includeTests && isTestFile(d.Name()) {
 			return nil
 		}
 		fs, ferr := analyzeFile(p)
@@ -188,6 +200,34 @@ func scan(path string) ([]rules.Finding, error) {
 		return nil
 	})
 	return all, err
+}
+
+// isTestDir reports whether a directory name is a conventional test location.
+func isTestDir(name string) bool {
+	switch name {
+	case "test", "tests", "testdata", "__tests__":
+		return true
+	}
+	return false
+}
+
+// isTestFile reports whether a file name matches a conventional test naming pattern.
+func isTestFile(name string) bool {
+	base := name
+	if i := strings.LastIndexByte(name, '.'); i >= 0 {
+		base = name[:i]
+	}
+	switch {
+	case strings.HasSuffix(name, "_test.go"): // Go
+		return true
+	case name == "conftest.py" || strings.HasPrefix(name, "test_") && strings.HasSuffix(name, ".py"): // Python
+		return true
+	case strings.HasSuffix(name, "_test.py"):
+		return true
+	case strings.HasSuffix(base, "Test") || strings.HasSuffix(base, "Tests"): // Java/Kotlin/C#
+		return true
+	}
+	return false
 }
 
 func supported(name string) bool {
