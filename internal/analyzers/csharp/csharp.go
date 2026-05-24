@@ -51,6 +51,12 @@ func walk(n *sitter.Node, src []byte, path string, df *dataflow, out *[]rules.Fi
 	case "assignment_expression":
 		*out = append(*out, evalAssign(n, src, path, df)...)
 	}
+	switch n.Type() {
+	case "invocation_expression":
+		*out = append(*out, evalTimingInvocation(n, src, path, df)...)
+	case "binary_expression":
+		*out = append(*out, evalTimingBinary(n, src, path, df)...)
+	}
 	for i := 0; i < int(n.NamedChildCount()); i++ {
 		walk(n.NamedChild(i), src, path, df, out)
 	}
@@ -160,6 +166,89 @@ func isLiteralBytes(n *sitter.Node, src []byte) bool {
 				return hasStringArg(n, src)
 			}
 		}
+	}
+	return false
+}
+
+// evalTimingInvocation flags a.SequenceEqual(b) / Enumerable.SequenceEqual(a, b)
+// where an operand is a MAC/digest. CryptographicOperations.FixedTimeEquals is the
+// safe form and is named differently, so it is never matched.
+func evalTimingInvocation(inv *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	recv, method := invRecvMethod(inv, src)
+	if method != "SequenceEqual" {
+		return nil
+	}
+	scope := enclosingScope(inv)
+	operands := append([]*sitter.Node{recv}, argExprs(inv)...)
+	for _, o := range operands {
+		if isMacExpr(o, src, df, scope) {
+			return findingsFrom([]rules.Match{rules.TimingCompare()}, inv, src, path)
+		}
+	}
+	return nil
+}
+
+// evalTimingBinary flags `a == b` / `a != b` where an operand is a MAC/digest.
+func evalTimingBinary(be *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
+	op := be.ChildByFieldName("operator")
+	if op == nil || (op.Type() != "==" && op.Type() != "!=") {
+		return nil
+	}
+	scope := enclosingScope(be)
+	if isMacExpr(be.ChildByFieldName("left"), src, df, scope) ||
+		isMacExpr(be.ChildByFieldName("right"), src, df, scope) {
+		return findingsFrom([]rules.Match{rules.TimingCompare()}, be, src, path)
+	}
+	return nil
+}
+
+// isMacExpr reports whether a node is a MAC/digest value: a tagged variable, or a
+// direct macObj.ComputeHash(...) / <HashType>.HashData(...) call.
+func isMacExpr(n *sitter.Node, src []byte, df *dataflow, scope uint32) bool {
+	if n == nil {
+		return false
+	}
+	if n.Type() == "identifier" {
+		return df.macTag[varKey(scope, n.Content(src))]
+	}
+	if n.Type() == "invocation_expression" {
+		recv, method := invRecvMethod(n, src)
+		if recv != nil && recv.Type() == "identifier" {
+			switch method {
+			case "ComputeHash", "TransformFinalBlock":
+				return df.macObj[varKey(scope, recv.Content(src))]
+			case "HashData":
+				return isHashOrHmac(recv.Content(src))
+			}
+		}
+	}
+	return false
+}
+
+// invRecvMethod returns the receiver expression and method name of an invocation.
+func invRecvMethod(inv *sitter.Node, src []byte) (*sitter.Node, string) {
+	fn := inv.ChildByFieldName("function")
+	if fn == nil || fn.Type() != "member_access_expression" {
+		return nil, ""
+	}
+	name := ""
+	if nm := fn.ChildByFieldName("name"); nm != nil {
+		name = nm.Content(src)
+	}
+	return fn.ChildByFieldName("expression"), name
+}
+
+// isHashOrHmac reports whether a .NET type name is an HMAC or hash algorithm.
+func isHashOrHmac(t string) bool {
+	for _, suffix := range []string{"CryptoServiceProvider", "Managed", "Cng"} {
+		t = strings.TrimSuffix(t, suffix)
+	}
+	if strings.HasPrefix(t, "HMAC") {
+		return true
+	}
+	switch t {
+	case "MD5", "SHA1", "SHA256", "SHA384", "SHA512", "HashAlgorithm", "KeyedHashAlgorithm", "HMAC":
+		return true
 	}
 	return false
 }

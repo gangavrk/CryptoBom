@@ -16,7 +16,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 |---|---|
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
 | Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
-| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG |
+| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -72,6 +72,15 @@ secure RNG is never flagged. Sources and sinks per language:
 - **C#** — `System.Random` via `NextBytes(buf)` into a `.Key`/`.IV` assignment.
   `RandomNumberGenerator` is never flagged. (Key sizes come from `Create(n)` / the
   constructor argument.)
+
+**Non-constant-time comparison.** A MAC/digest compared with a variable-time
+comparison is a timing side-channel. The same taint approach applies: a value is
+tagged as a MAC/digest at its source (`mac.doFinal()`/`md.digest()` in Java/Kotlin,
+`hmac.new(...).digest()` in Python, `hmac.New().Sum()`/`sha256.Sum256` in Go,
+`hmac.ComputeHash()` in C#), and a comparison is only flagged when an operand is
+tagged — so ordinary equality checks are never touched. The constant-time forms are
+recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
+`subtle.ConstantTimeCompare`/`hmac.Equal`, `CryptographicOperations.FixedTimeEquals`.
 
 Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
 highest false-positive risk).

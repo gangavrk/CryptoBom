@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -42,6 +43,24 @@ namespace Example
             var good = new byte[16];
             RandomNumberGenerator.Fill(good);
             aes.IV = good;
+        }
+
+        bool TimingCompare(byte[] key, byte[] msg, byte[] provided)
+        {
+            var mac = new HMACSHA256(key);
+            var tag = mac.ComputeHash(msg);
+            // Non-constant-time comparison of a MAC — flagged.
+            if (tag.SequenceEqual(provided))
+            {
+                return true;
+            }
+            // Constant-time comparison — must NOT be flagged.
+            if (CryptographicOperations.FixedTimeEquals(tag, provided))
+            {
+                return true;
+            }
+            // Non-crypto comparison — must NOT be flagged.
+            return msg.SequenceEqual(provided);
         }
 
         void StrongOrInventory()
