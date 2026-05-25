@@ -73,9 +73,16 @@ func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 		}
 
 	// --- RSA encryption (pycryptodome padding modules) ---
-	case "PKCS1_OAEP", "PKCS1_v1_5":
+	case "PKCS1_OAEP":
 		if attr == "new" {
 			return evalCipher("RSA")
+		}
+	case "PKCS1_v1_5":
+		// pycryptodome's Cipher.PKCS1_v1_5 is the v1.5 *encryption* cipher
+		// (Bleichenbacher-vulnerable); the signature variant lives in a separate
+		// module (Signature.pkcs1_15), so this name is unambiguous.
+		if attr == "new" {
+			return append(evalCipher("RSA"), rsaPKCS1v15Misuse("PKCS1_v1_5.new"))
 		}
 	}
 	return nil

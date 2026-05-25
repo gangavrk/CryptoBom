@@ -32,6 +32,7 @@ func TestPyEvaluate(t *testing.T) {
 		{"RSA", "generate", "", false, []string{"CB-ASYM-RSA-KEYGEN"}},
 		{"ECC", "generate", "", false, []string{"CB-ASYM-EC-KEYGEN"}},
 		{"PKCS1_OAEP", "new", "", false, []string{"CB-ASYM-RSA-CIPHER"}},
+		{"PKCS1_v1_5", "new", "", false, []string{"CB-ASYM-RSA-CIPHER", "CB-MISUSE-RSA-PKCS1V15"}},
 		{"json", "loads", "", false, nil}, // unrelated call -> nothing
 	}
 

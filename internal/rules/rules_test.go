@@ -27,14 +27,20 @@ func TestEvaluate(t *testing.T) {
 		factory, arg string
 		want         []string // rule IDs expected, exact set
 	}{
-		{"Cipher", "RSA", []string{"CB-ASYM-RSA-CIPHER"}},
+		{"Cipher", "RSA", []string{"CB-ASYM-RSA-CIPHER"}}, // not a block cipher: no default-ECB
 		{"Cipher", "AES/ECB/PKCS5Padding", []string{"CB-MISUSE-ECB"}},
+		// A bare block-cipher transform makes the JCE default to ECB.
+		{"Cipher", "AES", []string{"CB-MISUSE-ECB"}},
+		{"Cipher", "DES", []string{"CB-WEAK-DES", "CB-MISUSE-ECB"}},
 		{"Cipher", "AES/GCM/NoPadding", nil},
 		{"Cipher", "DES/ECB/PKCS5Padding", []string{"CB-WEAK-DES", "CB-MISUSE-ECB"}},
 		{"Cipher", "DESede/CBC/PKCS5Padding", []string{"CB-WEAK-3DES"}},
 		{"Cipher", "RC4", []string{"CB-WEAK-RC4"}},
-		// RSA's JCE "ECB" pseudo-mode must NOT be flagged as ECB misuse.
+		// RSA's JCE "ECB" pseudo-mode must NOT be flagged as ECB misuse, and OAEP
+		// padding is the safe form (no PKCS#1 v1.5 finding).
 		{"Cipher", "RSA/ECB/OAEPWithSHA-256AndMGF1Padding", []string{"CB-ASYM-RSA-CIPHER"}},
+		// PKCS#1 v1.5 encryption padding is Bleichenbacher-vulnerable.
+		{"Cipher", "RSA/ECB/PKCS1Padding", []string{"CB-ASYM-RSA-CIPHER", "CB-MISUSE-RSA-PKCS1V15"}},
 		{"MessageDigest", "MD5", []string{"CB-WEAK-MD5"}},
 		{"MessageDigest", "SHA-1", []string{"CB-WEAK-SHA1"}},
 		{"MessageDigest", "SHA-256", []string{"CB-INV-HASH"}},
@@ -44,9 +50,21 @@ func TestEvaluate(t *testing.T) {
 		{"Signature", "SHA1withRSA", []string{"CB-SIG-RSA", "CB-WEAK-SHA1"}},
 		{"Signature", "SHA256withECDSA", []string{"CB-SIG-ECDSA"}},
 		{"KeyAgreement", "ECDH", []string{"CB-KA-ECDH"}},
+		// Weak MAC: HMAC over a broken hash is flagged; HMAC-SHA* is not.
+		{"Mac", "HmacMD5", []string{"CB-WEAK-MAC"}},
+		{"Mac", "HmacSHA256", nil},
+		{"Mac", "HmacSHA1", nil},
 		// Strong, modern usage produces no findings.
 		{"Cipher", "ChaCha20-Poly1305", nil},
 		{"KeyGenerator", "AES", []string{"CB-INV-SYMKEY"}},
+	}
+
+	// .NET HMACMD5 type maps to the same weak-MAC rule.
+	if got := CSharpEvaluate("HMACMD5"); !has(got, "CB-WEAK-MAC") {
+		t.Errorf("CSharpEvaluate(HMACMD5): missing CB-WEAK-MAC (got [%s])", ruleIDs(got))
+	}
+	if got := CSharpEvaluate("HMACSHA256"); len(got) != 0 {
+		t.Errorf("CSharpEvaluate(HMACSHA256): want none, got [%s]", ruleIDs(got))
 	}
 
 	for _, tt := range tests {

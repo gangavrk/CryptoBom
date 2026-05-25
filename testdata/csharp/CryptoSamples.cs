@@ -26,6 +26,7 @@ namespace Example
             var sha1 = SHA1.Create();
             var des = new DESCryptoServiceProvider();
             var tdes = TripleDES.Create();
+            var weakMac = new HMACMD5();
             aes.Mode = CipherMode.ECB;
         }
 

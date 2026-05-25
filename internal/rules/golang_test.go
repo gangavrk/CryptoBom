@@ -20,6 +20,9 @@ func TestGoEvaluate(t *testing.T) {
 		{"crypto/rc4", "NewCipher", []string{"CB-WEAK-RC4"}},
 		{"crypto/rsa", "GenerateKey", []string{"CB-ASYM-RSA-KEYGEN"}},
 		{"crypto/rsa", "EncryptOAEP", []string{"CB-ASYM-RSA-CIPHER"}},
+		// PKCS#1 v1.5 *encryption* is Bleichenbacher-vulnerable; *signing* is not.
+		{"crypto/rsa", "EncryptPKCS1v15", []string{"CB-ASYM-RSA-CIPHER", "CB-MISUSE-RSA-PKCS1V15"}},
+		{"crypto/rsa", "SignPKCS1v15", []string{"CB-SIG-RSA"}},
 		{"crypto/rsa", "SignPSS", []string{"CB-SIG-RSA"}},
 		{"crypto/ecdsa", "GenerateKey", []string{"CB-ASYM-EC-KEYGEN"}},
 		{"crypto/ecdsa", "SignASN1", []string{"CB-SIG-ECDSA"}},

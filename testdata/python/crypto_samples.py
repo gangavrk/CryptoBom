@@ -25,7 +25,7 @@ def tls_setup():
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.asymmetric import rsa, ec
-from Crypto.Cipher import AES, DES, PKCS1_OAEP
+from Crypto.Cipher import AES, DES, PKCS1_OAEP, PKCS1_v1_5
 from Crypto.PublicKey import RSA
 
 
@@ -35,6 +35,8 @@ def vulnerable(key):
     eck = ec.generate_private_key(ec.SECP256R1())
     rkey = RSA.generate(2048)
     cipher = PKCS1_OAEP.new(rkey)
+    # PKCS#1 v1.5 encryption padding — Bleichenbacher-vulnerable (OAEP above is safe).
+    legacy_cipher = PKCS1_v1_5.new(rkey)
     # Classically weak parameters (also flagged on top of quantum-vulnerability).
     weak_curve = ec.generate_private_key(ec.SECP192R1())
 

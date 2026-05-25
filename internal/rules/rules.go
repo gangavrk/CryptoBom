@@ -78,6 +78,7 @@ var factories = map[string]bool{
 	"Signature":        true,
 	"KeyAgreement":     true,
 	"SSLContext":       true, // SSLContext.getInstance("TLSv1.2") — protocol version
+	"Mac":              true, // Mac.getInstance("HmacMD5") — weak MAC
 }
 
 // IsFactory reports whether className is a recognized JCA crypto factory.
@@ -93,7 +94,7 @@ func Evaluate(factory, arg string) []Match {
 	}
 	switch factory {
 	case "Cipher":
-		return evalCipher(arg)
+		return append(evalCipher(arg), jcaCipherMisuse(arg)...)
 	case "MessageDigest":
 		return evalDigest(arg)
 	case "KeyPairGenerator":
@@ -106,6 +107,33 @@ func Evaluate(factory, arg string) []Match {
 		return evalKeyAgreement(arg)
 	case "SSLContext":
 		return EvalProtocol(arg)
+	case "Mac":
+		return evalMac(arg)
+	}
+	return nil
+}
+
+// evalMac flags a MAC built on a broken hash (HMAC-MD5 and the MD2/MD4 variants).
+// MACs over SHA-1 and stronger are not flagged — HMAC-SHA1 has no practical break —
+// so HmacSHA1/HmacSHA256/… produce nothing.
+func evalMac(alg string) []Match {
+	n := normHash(alg) // "HmacMD5" -> "HMACMD5"
+	if !strings.HasPrefix(n, "HMAC") {
+		return nil
+	}
+	for _, weak := range []string{"MD5", "MD4", "MD2"} {
+		if strings.Contains(n, weak) {
+			return []Match{{
+				RuleID:      "CB-WEAK-MAC",
+				Title:       "HMAC-" + weak + " uses a broken hash",
+				Severity:    SeverityMedium,
+				Category:    CategoryWeak,
+				Algorithm:   "HMAC-" + weak,
+				Detail:      alg,
+				Primitive:   "mac",
+				Remediation: "Use HMAC-SHA-256 (or stronger).",
+			}}
+		}
 	}
 	return nil
 }
@@ -177,6 +205,54 @@ func evalCipher(transform string) []Match {
 		out = append(out, ecbMisuse(alg, transform))
 	}
 	return out
+}
+
+// jcaCipherMisuse flags misuse that depends on JCE Cipher.getInstance transform
+// semantics — distinct from evalCipher, which is shared with the Go and Python
+// analyzers that pass a bare algorithm name carrying no JCE default behavior.
+func jcaCipherMisuse(transform string) []Match {
+	parts := strings.Split(transform, "/")
+	alg := strings.ToUpper(strings.TrimSpace(parts[0]))
+	var out []Match
+	// A transform with no mode (just the algorithm) makes the JCE fall back to ECB
+	// for block ciphers — a silent, well-known footgun (e.g. Cipher.getInstance("AES")).
+	if len(parts) == 1 && isBlockCipher(alg) {
+		out = append(out, defaultECBMisuse(strings.TrimSpace(parts[0]), transform))
+	}
+	// RSA with PKCS#1 v1.5 *encryption* padding ("RSA/ECB/PKCS1Padding") is
+	// Bleichenbacher-vulnerable; the OAEP padding token is the safe form.
+	if alg == "RSA" && len(parts) >= 3 {
+		pad := strings.ToUpper(strings.TrimSpace(parts[2]))
+		if strings.Contains(pad, "PKCS1") && !strings.Contains(pad, "OAEP") {
+			out = append(out, rsaPKCS1v15Misuse(transform))
+		}
+	}
+	return out
+}
+
+// rsaPKCS1v15Misuse flags RSA *encryption* with PKCS#1 v1.5 padding, which is
+// vulnerable to Bleichenbacher / ROBOT padding-oracle attacks. RSA *signatures*
+// with PKCS#1 v1.5 (RSASSA-PKCS1-v1_5) are standard and are never flagged.
+func rsaPKCS1v15Misuse(detail string) Match {
+	return Match{
+		RuleID:      "CB-MISUSE-RSA-PKCS1V15",
+		Title:       "RSA encryption with PKCS#1 v1.5 padding (Bleichenbacher-vulnerable)",
+		Severity:    SeverityMedium,
+		Category:    CategoryMisuse,
+		Algorithm:   "RSA",
+		Detail:      detail,
+		Primitive:   "pke",
+		Functions:   []string{"encrypt", "decrypt"},
+		Remediation: "Use RSA-OAEP for encryption; PKCS#1 v1.5 encryption padding is vulnerable to padding-oracle attacks.",
+	}
+}
+
+// defaultECBMisuse is the ECB match for a block cipher requested with no mode, so
+// the JCE defaults to ECB. It reuses the ECB rule with a clearer title.
+func defaultECBMisuse(alg, detail string) Match {
+	m := ecbMisuse(alg, detail)
+	m.Title = "Cipher with no mode defaults to ECB (leaks plaintext structure)"
+	return m
 }
 
 // ecbMisuse builds the shared ECB-mode misuse match. alg is the cipher (used as

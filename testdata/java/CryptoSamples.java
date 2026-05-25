@@ -18,8 +18,10 @@ import java.util.Random;
 public class CryptoSamples {
 
     void vulnerable() throws Exception {
-        // Quantum-vulnerable asymmetric crypto.
+        // Quantum-vulnerable asymmetric crypto. OAEP padding is the safe form;
+        // PKCS#1 v1.5 encryption padding (below) is Bleichenbacher-vulnerable.
         Cipher rsa = Cipher.getInstance("RSA/ECB/OAEPWithSHA-256AndMGF1Padding");
+        Cipher rsaLegacy = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         KeyPairGenerator rsaKeys = KeyPairGenerator.getInstance("RSA");
         KeyPairGenerator ecKeys = KeyPairGenerator.getInstance("EC");
         Signature sig = Signature.getInstance("SHA1withRSA");
@@ -30,7 +32,11 @@ public class CryptoSamples {
         // Weak / deprecated algorithms and a classic misuse.
         Cipher des = Cipher.getInstance("DES");
         Cipher aesEcb = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        // No mode specified → the JCE silently defaults to ECB.
+        Cipher aesNoMode = Cipher.getInstance("AES");
         MessageDigest md5 = MessageDigest.getInstance("MD5");
+        // MAC over a broken hash (HMAC-SHA256 in timingCompare() is the safe form).
+        Mac weakMac = Mac.getInstance("HmacMD5");
         // Deprecated TLS protocol version; the modern one is inventory-only.
         javax.net.ssl.SSLContext legacy = javax.net.ssl.SSLContext.getInstance("TLSv1.1");
         javax.net.ssl.SSLContext modern = javax.net.ssl.SSLContext.getInstance("TLSv1.3");

@@ -68,9 +68,13 @@ func GoEvaluate(importPath, fn string) []Match {
 		switch fn {
 		case "GenerateKey", "GenerateMultiPrimeKey":
 			return evalKeyPairGen("RSA")
-		case "EncryptPKCS1v15", "DecryptPKCS1v15", "EncryptOAEP", "DecryptOAEP":
+		case "EncryptPKCS1v15", "DecryptPKCS1v15":
+			// PKCS#1 v1.5 *encryption* padding is Bleichenbacher-vulnerable.
+			return append(evalCipher("RSA"), rsaPKCS1v15Misuse("rsa."+fn))
+		case "EncryptOAEP", "DecryptOAEP":
 			return evalCipher("RSA")
 		case "SignPKCS1v15", "VerifyPKCS1v15", "SignPSS", "VerifyPSS":
+			// PKCS#1 v1.5 *signatures* are standard; not a padding-oracle risk.
 			return evalSignature("RSA")
 		}
 	case "crypto/ecdsa":

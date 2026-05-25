@@ -27,6 +27,7 @@ references:
   rfc-7568:    {authority: IETF, id: "RFC 7568 (deprecate SSLv3)",    url: "https://www.rfc-editor.org/rfc/rfc7568"}
   rfc-6151:    {authority: IETF, id: "RFC 6151 (MD5)",               url: "https://www.rfc-editor.org/rfc/rfc6151"}
   rfc-5280:    {authority: IETF, id: "RFC 5280 (X.509)",             url: "https://www.rfc-editor.org/rfc/rfc5280"}
+  rfc-8017:    {authority: IETF, id: "RFC 8017 (PKCS #1 v2.2)",      url: "https://www.rfc-editor.org/rfc/rfc8017"}
   owasp-crypto:  {authority: OWASP, id: "Cryptographic Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"}
   owasp-secrets: {authority: OWASP, id: "Secrets Management Cheat Sheet",     url: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"}
   dora:        {authority: EU,   id: "DORA (Regulation 2022/2554)",  url: "https://eur-lex.europa.eu/eli/reg/2022/2554/oj"}
@@ -66,6 +67,7 @@ rules:
   CB-WEAK-KEYSIZE:  {cwe: [CWE-326], standardStatus: finalized, references: [sp-800-57, sp-800-131a]}
   CB-WEAK-CURVE:    {cwe: [CWE-326], standardStatus: finalized, references: [sp-800-57]}
   CB-WEAK-CERT-SIG: {cwe: [CWE-328], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-MAC:      {cwe: [CWE-328], standardStatus: finalized, references: [rfc-6151, sp-800-131a]}
 
   # Misuse.
   CB-MISUSE-ECB:            {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-38a, owasp-crypto]}
@@ -73,6 +75,7 @@ rules:
   CB-MISUSE-HARDCODED-KEY:  {cwe: [CWE-321, CWE-798], standardStatus: guidance, references: [owasp-secrets, owasp-crypto]}
   CB-MISUSE-WEAK-PRNG:      {cwe: [CWE-338], standardStatus: guidance, references: [sp-800-90a, owasp-crypto]}
   CB-MISUSE-TIMING-COMPARE: {cwe: [CWE-208], standardStatus: guidance, references: [owasp-crypto]}
+  CB-MISUSE-RSA-PKCS1V15:   {cwe: [CWE-780], standardStatus: guidance, references: [rfc-8017, owasp-crypto]}
 
   # Protocols & cipher suites.
   CB-WEAK-PROTOCOL:    {cwe: [CWE-327], standardStatus: finalized, references: [rfc-8996, rfc-7568, sp-800-52]}
