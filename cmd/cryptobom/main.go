@@ -18,6 +18,7 @@ import (
 	kotlinanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/kotlin"
 	materialanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/material"
 	pythonanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/python"
+	"github.com/cryptobom/cryptobom/internal/baseline"
 	"github.com/cryptobom/cryptobom/internal/cbom"
 	"github.com/cryptobom/cryptobom/internal/report"
 	"github.com/cryptobom/cryptobom/internal/rules"
@@ -32,11 +33,18 @@ usage:
   cryptobom version
 
 flags:
-  --format string   stdout format: terminal | cbom | sarif  (default "terminal")
-  --cbom file       also write a CycloneDX CBOM to file
-  --sarif file      also write a SARIF 2.1.0 report to file
-  --include-tests   also scan test code (test/ dirs, *_test.go, *Test.java, …)
-  --no-color        disable ANSI colors in terminal output
+  --format string        stdout format: terminal | cbom | sarif  (default "terminal")
+  --cbom file            also write a CycloneDX CBOM to file
+  --sarif file           also write a SARIF 2.1.0 report to file
+  --fail-on severity     exit non-zero (code 2) if a finding is >= this severity
+                         (critical | high | medium | low)
+  --baseline file        ignore findings recorded in the baseline (surface only new)
+  --write-baseline file  write the current findings to a baseline file and exit
+  --include-tests        also scan test code (test/ dirs, *_test.go, *Test.java, …)
+  --no-color             disable ANSI colors in terminal output
+
+Findings can be suppressed inline with a "cryptobom:ignore" comment (optionally
+"cryptobom:ignore[CB-WEAK-MD5]") on the finding's line or the line above it.
 
 The --cbom and --sarif flags write to files independently of --format, so a
 single scan can print a developer report and emit both machine artifacts:
@@ -51,29 +59,33 @@ var skipDirs = map[string]bool{
 }
 
 func main() {
-	if err := run(os.Args[1:]); err != nil {
+	code, err := run(os.Args[1:])
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "cryptobom: %v\n", err)
 		os.Exit(1)
 	}
+	os.Exit(code)
 }
 
-func run(args []string) error {
+// run executes the CLI and returns a process exit code (0 ok, 2 = --fail-on
+// threshold met) plus an operational error (mapped to exit 1 by main).
+func run(args []string) (int, error) {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Print(usage)
-		return nil
+		return 0, nil
 	}
 	if args[0] == "version" || args[0] == "--version" || args[0] == "-v" {
 		fmt.Printf("cryptobom %s\n", version.Version)
-		return nil
+		return 0, nil
 	}
 	if args[0] != "scan" {
-		return fmt.Errorf("unknown command %q (try 'scan')", args[0])
+		return 0, fmt.Errorf("unknown command %q (try 'scan')", args[0])
 	}
 
 	format := "terminal"
 	noColor := false
 	includeTests := false
-	var path, cbomPath, sarifPath string
+	var path, cbomPath, sarifPath, failOn, baselinePath, writeBaselinePath string
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		a := rest[i]
@@ -89,50 +101,108 @@ func run(args []string) error {
 			cbomPath, i, err = flagValue("--cbom", rest, i)
 		case a == "--sarif" || strings.HasPrefix(a, "--sarif="):
 			sarifPath, i, err = flagValue("--sarif", rest, i)
+		case a == "--fail-on" || strings.HasPrefix(a, "--fail-on="):
+			failOn, i, err = flagValue("--fail-on", rest, i)
+		case a == "--baseline" || strings.HasPrefix(a, "--baseline="):
+			baselinePath, i, err = flagValue("--baseline", rest, i)
+		case a == "--write-baseline" || strings.HasPrefix(a, "--write-baseline="):
+			writeBaselinePath, i, err = flagValue("--write-baseline", rest, i)
 		case strings.HasPrefix(a, "-"):
 			err = fmt.Errorf("unknown flag %q", a)
 		default:
 			path = a
 		}
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 	if path == "" {
 		path = "."
 	}
 	if format != "terminal" && format != "cbom" && format != "sarif" {
-		return fmt.Errorf("invalid --format %q (want terminal, cbom, or sarif)", format)
+		return 0, fmt.Errorf("invalid --format %q (want terminal, cbom, or sarif)", format)
+	}
+	if failOn != "" && sevRank(rules.Severity(failOn)) == 0 {
+		return 0, fmt.Errorf("invalid --fail-on %q (want critical, high, medium, or low)", failOn)
 	}
 
 	findings, err := scan(path, includeTests)
 	if err != nil {
-		return err
+		return 0, err
+	}
+
+	if writeBaselinePath != "" {
+		n, werr := baseline.Write(writeBaselinePath, findings)
+		if werr != nil {
+			return 0, werr
+		}
+		fmt.Fprintf(os.Stderr, "cryptobom: wrote baseline (%d findings) to %s\n", n, writeBaselinePath)
+		return 0, nil
+	}
+	if baselinePath != "" {
+		set, lerr := baseline.Load(baselinePath)
+		if lerr != nil {
+			return 0, fmt.Errorf("baseline: %w", lerr)
+		}
+		findings = baseline.Filter(findings, set)
 	}
 
 	// File outputs are written independently of the stdout --format.
 	if cbomPath != "" {
 		if err := emitToFile(cbomPath, func(w io.Writer) error { return cbom.Emit(w, path, findings) }); err != nil {
-			return err
+			return 0, err
 		}
 		fmt.Fprintf(os.Stderr, "cryptobom: wrote CBOM to %s\n", cbomPath)
 	}
 	if sarifPath != "" {
 		if err := emitToFile(sarifPath, func(w io.Writer) error { return sarif.Emit(w, findings) }); err != nil {
-			return err
+			return 0, err
 		}
 		fmt.Fprintf(os.Stderr, "cryptobom: wrote SARIF to %s\n", sarifPath)
 	}
 
 	switch format {
 	case "cbom":
-		return cbom.Emit(os.Stdout, path, findings)
+		if err := cbom.Emit(os.Stdout, path, findings); err != nil {
+			return 0, err
+		}
 	case "sarif":
-		return sarif.Emit(os.Stdout, findings)
+		if err := sarif.Emit(os.Stdout, findings); err != nil {
+			return 0, err
+		}
 	default:
 		report.Write(os.Stdout, path, findings, !noColor && isTerminal(os.Stdout))
-		return nil
 	}
+
+	if failOn != "" && anyAtOrAbove(findings, rules.Severity(failOn)) {
+		return 2, nil
+	}
+	return 0, nil
+}
+
+// sevRank orders severities (higher = more severe); info is 0 and never gates.
+func sevRank(s rules.Severity) int {
+	switch s {
+	case rules.SeverityCritical:
+		return 4
+	case rules.SeverityHigh:
+		return 3
+	case rules.SeverityMedium:
+		return 2
+	case rules.SeverityLow:
+		return 1
+	}
+	return 0
+}
+
+func anyAtOrAbove(findings []rules.Finding, threshold rules.Severity) bool {
+	th := sevRank(threshold)
+	for _, f := range findings {
+		if sevRank(f.Severity) >= th {
+			return true
+		}
+	}
+	return false
 }
 
 // flagValue resolves a flag's value given as "--flag value" or "--flag=value",
@@ -269,12 +339,74 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 	case materialanalyzer.IsMaterialFile(filepath.Base(p)):
 		findings, err = materialanalyzer.Analyze(p, src)
 	}
-	if err == nil && isTestPath(p) {
-		for i := range findings {
-			findings[i].Scope = "test"
+	if err == nil {
+		findings = applySuppressions(findings, src)
+		if isTestPath(p) {
+			for i := range findings {
+				findings[i].Scope = "test"
+			}
 		}
 	}
 	return findings, err
+}
+
+// applySuppressions drops findings whose line (or the line above) carries a
+// "cryptobom:ignore" comment.
+func applySuppressions(findings []rules.Finding, src []byte) []rules.Finding {
+	if len(findings) == 0 {
+		return findings
+	}
+	lines := strings.Split(string(src), "\n")
+	out := findings[:0]
+	for _, f := range findings {
+		if suppressed(lines, f.Line, f.RuleID) {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
+func suppressed(lines []string, line int, ruleID string) bool {
+	// The finding's own line: a trailing or standalone marker both apply.
+	if idx := line - 1; idx >= 0 && idx < len(lines) && markerApplies(lines[idx], ruleID, false) {
+		return true
+	}
+	// The line above: only a comment-only marker applies, so a trailing ignore on
+	// one line doesn't leak onto the next.
+	if idx := line - 2; idx >= 0 && idx < len(lines) && markerApplies(lines[idx], ruleID, true) {
+		return true
+	}
+	return false
+}
+
+// markerApplies reports whether a cryptobom:ignore marker on line suppresses ruleID.
+// "cryptobom:ignore" alone suppresses any rule; "cryptobom:ignore[CB-X,CB-Y]"
+// suppresses only the listed rules. When requireCommentOnly is set, the marker must
+// be the only content on the line (apart from whitespace/comment punctuation).
+func markerApplies(line, ruleID string, requireCommentOnly bool) bool {
+	const marker = "cryptobom:ignore"
+	i := strings.Index(line, marker)
+	if i < 0 {
+		return false
+	}
+	if requireCommentOnly && strings.TrimLeft(line[:i], " \t/#*-!<") != "" {
+		return false
+	}
+	rest := line[i+len(marker):]
+	if !strings.HasPrefix(rest, "[") {
+		return true // bare marker → all rules
+	}
+	end := strings.Index(rest, "]")
+	if end < 0 {
+		return true
+	}
+	for _, r := range strings.Split(rest[1:end], ",") {
+		if strings.TrimSpace(r) == ruleID {
+			return true
+		}
+	}
+	return false
 }
 
 // isTestPath reports whether a file path is test code — either a test directory

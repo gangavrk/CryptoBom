@@ -140,6 +140,13 @@ cryptobom scan --format cbom ./path/to/java/project > cbom.json
 # Emit SARIF 2.1.0 for IDEs / GitHub code scanning
 cryptobom scan --format sarif ./path/to/java/project > results.sarif
 
+# CI gate: fail the build (exit 2) on any high+ finding
+cryptobom scan --fail-on high ./src
+
+# Baseline: record current findings, then surface only NEW ones on later scans
+cryptobom scan --write-baseline .cryptobom-baseline.json ./src
+cryptobom scan --baseline .cryptobom-baseline.json --fail-on medium ./src
+
 # One scan, both artifacts: a developer report on screen plus files on disk
 cryptobom scan --sarif results.sarif --cbom cbom.json ./path/to/java/project
 ```
@@ -147,6 +154,18 @@ cryptobom scan --sarif results.sarif --cbom cbom.json ./path/to/java/project
 `--cbom` and `--sarif` write to files independently of `--format` (which controls
 stdout). The SARIF report carries the actionable problems for developers; the CBOM
 is the full cryptographic inventory for tracking and compliance.
+
+## CI gating & noise control
+
+- **`--fail-on <severity>`** (`critical`/`high`/`medium`/`low`) makes `cryptobom`
+  exit **2** when any reported finding is at or above that severity, so it can gate a
+  PR. Exit codes: `0` clean, `2` threshold met, `1` operational error.
+- **`--baseline <file>`** ignores findings already recorded in the file, surfacing only
+  *new* ones. Generate the file with **`--write-baseline <file>`**. Fingerprints exclude
+  line numbers, so findings survive unrelated edits.
+- **Inline suppression:** add `cryptobom:ignore` in a comment on the finding's line, or
+  a comment-only line directly above it. Scope it to specific rules with
+  `cryptobom:ignore[CB-WEAK-MD5,CB-MISUSE-ECB]`.
 
 ## GitHub Action
 
