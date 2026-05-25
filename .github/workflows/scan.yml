@@ -12,15 +12,11 @@ permissions:
   contents: read
   security-events: write # required to upload SARIF to code scanning
 
-env:
-  # Run JavaScript actions on Node 24; Node 20 is deprecated (forced off mid-2026).
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - id: cryptobom
         uses: ./
@@ -31,13 +27,13 @@ jobs:
 
       - name: Upload SARIF to code scanning
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: ${{ steps.cryptobom.outputs.sarif-file }}
 
       - name: Upload CBOM artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cbom
           path: ${{ steps.cryptobom.outputs.cbom-file }}
