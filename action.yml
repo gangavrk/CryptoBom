@@ -18,6 +18,10 @@ inputs:
     description: "Where to write the CycloneDX CBOM JSON (relative to the workspace)."
     required: false
     default: "cryptobom.cbom.json"
+  profile:
+    description: "Compliance profile to classify findings against (cnsa-2.0 | fips-140-3 | dora). Empty for none."
+    required: false
+    default: ""
 
 outputs:
   sarif-file:
@@ -32,3 +36,4 @@ runs:
     - ${{ inputs.path }}
     - ${{ inputs.sarif-file }}
     - ${{ inputs.cbom-file }}
+    - ${{ inputs.profile }}

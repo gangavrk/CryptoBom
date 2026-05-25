@@ -36,8 +36,10 @@ func rank(s rules.Severity) int {
 	}
 }
 
-// Write prints a report of findings for target to w.
-func Write(w io.Writer, target string, findings []rules.Finding, color bool) {
+// Write prints a report of findings for target to w. profile may be nil; when
+// set, each problem is tagged with its compliance status and the summary counts
+// violations of the standard.
+func Write(w io.Writer, target string, findings []rules.Finding, color bool, profile *rules.Profile) {
 	c := palette(color)
 
 	var problems, inventory []rules.Finding
@@ -59,7 +61,11 @@ func Write(w io.Writer, target string, findings []rules.Finding, color bool) {
 		return problems[i].Line < problems[j].Line
 	})
 
-	fmt.Fprintf(w, "\n%scryptobom%s  scan of %s%s%s\n\n", c.bold, c.reset, c.cyan, target, c.reset)
+	fmt.Fprintf(w, "\n%scryptobom%s  scan of %s%s%s\n", c.bold, c.reset, c.cyan, target, c.reset)
+	if profile != nil {
+		fmt.Fprintf(w, "%sprofile: %s (%s)%s\n", c.dim, profile.Name, profile.ID, c.reset)
+	}
+	fmt.Fprintln(w)
 
 	if len(problems) == 0 {
 		fmt.Fprintf(w, "  %sNo cryptographic issues found.%s\n", c.dim, c.reset)
@@ -77,16 +83,46 @@ func Write(w io.Writer, target string, findings []rules.Finding, color bool) {
 			cwe = " · " + strings.Join(prov.CWE, ",")
 		}
 		fmt.Fprintf(w, "    %srule %s · %s%s%s\n", c.dim, f.RuleID, f.Category, cwe, c.reset)
+		if profile != nil && f.Compliance != "" {
+			fmt.Fprintf(w, "    %s%s%s\n", complianceColor(c, f.Compliance), complianceLabel(f.Compliance, profile), c.reset)
+		}
 		if f.Remediation != "" {
 			fmt.Fprintf(w, "    %s→ %s%s\n", c.dim, f.Remediation, c.reset)
 		}
 		fmt.Fprintln(w)
 	}
 
-	writeSummary(w, c, problems, inventory)
+	writeSummary(w, c, problems, inventory, profile)
 }
 
-func writeSummary(w io.Writer, c colors, problems, inventory []rules.Finding) {
+// complianceLabel renders a finding's compliance status against the active profile.
+func complianceLabel(s rules.Compliance, p *rules.Profile) string {
+	switch s {
+	case rules.ComplianceViolation:
+		return "✗ violates " + p.Name
+	case rules.ComplianceNotApplicable:
+		return "— not a " + p.Name + " violation"
+	case rules.ComplianceCompliant:
+		return "✓ compliant with " + p.Name
+	}
+	return ""
+}
+
+func complianceColor(c colors, s rules.Compliance) string {
+	if !c.on {
+		return ""
+	}
+	switch s {
+	case rules.ComplianceViolation:
+		return red
+	case rules.ComplianceCompliant:
+		return cyan
+	default:
+		return dim
+	}
+}
+
+func writeSummary(w io.Writer, c colors, problems, inventory []rules.Finding, profile *rules.Profile) {
 	counts := map[rules.Severity]int{}
 	for _, f := range problems {
 		counts[f.Severity]++
@@ -109,6 +145,22 @@ func writeSummary(w io.Writer, c colors, problems, inventory []rules.Finding) {
 		fmt.Fprint(w, "none")
 	}
 	fmt.Fprintln(w)
+
+	if profile != nil {
+		violations := 0
+		for _, f := range problems {
+			if f.Compliance == rules.ComplianceViolation {
+				violations++
+			}
+		}
+		col := c.cyan
+		if violations > 0 && c.on {
+			col = red
+		} else if violations > 0 {
+			col = ""
+		}
+		fmt.Fprintf(w, "%s%d violation(s) of %s.%s\n", col, violations, profile.Name, c.reset)
+	}
 
 	pqc, other := 0, 0
 	for _, f := range inventory {

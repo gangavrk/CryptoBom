@@ -87,16 +87,17 @@ type region struct {
 	Snippet     *text `json:"snippet,omitempty"`
 }
 
-// Emit writes a SARIF 2.1.0 report for findings to w.
-func Emit(w io.Writer, findings []rules.Finding) error {
-	doc := build(findings)
+// Emit writes a SARIF 2.1.0 report for findings to w. profile may be nil; when
+// set, the run records it and each result carries its compliance status.
+func Emit(w io.Writer, findings []rules.Finding, profile *rules.Profile) error {
+	doc := build(findings, profile)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	enc.SetEscapeHTML(false)
 	return enc.Encode(doc)
 }
 
-func build(findings []rules.Finding) document {
+func build(findings []rules.Finding, profile *rules.Profile) document {
 	problems := make([]rules.Finding, 0, len(findings))
 	for _, f := range findings {
 		if f.Severity != rules.SeverityInfo {
@@ -133,19 +134,29 @@ func build(findings []rules.Finding) document {
 				},
 			}},
 		}
-		if f.Scope != "" {
-			r.Properties = map[string]string{"scope": f.Scope}
+		if f.Scope != "" || f.Compliance != "" {
+			r.Properties = map[string]string{}
+			if f.Scope != "" {
+				r.Properties["scope"] = f.Scope
+			}
+			if f.Compliance != "" {
+				r.Properties["compliance"] = string(f.Compliance)
+			}
 		}
 		results = append(results, r)
 	}
 
+	runProps := map[string]string{"rulepackVersion": rules.RulePackVersion}
+	if profile != nil {
+		runProps["profile"] = profile.ID
+	}
 	return document{
 		Schema:  schemaURI,
 		Version: "2.1.0",
 		Runs: []run{{
 			Tool:       tool{Driver: driver{Name: toolName, Version: version.Version, Rules: descriptors}},
 			Results:    results,
-			Properties: map[string]string{"rulepackVersion": rules.RulePackVersion},
+			Properties: runProps,
 		}},
 	}
 }

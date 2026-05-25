@@ -124,9 +124,6 @@ tagged — so ordinary equality checks are never touched. The constant-time form
 recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 `subtle.ConstantTimeCompare`/`hmac.Equal`, `CryptographicOperations.FixedTimeEquals`.
 
-Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
-highest false-positive risk).
-
 ## Rule provenance & trust
 
 Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. Each
@@ -151,8 +148,39 @@ This flows into all three outputs:
 
 The catalog is open source and reviewed via pull request, so its change history is the
 audit trail. A test (`TestEveryRuleHasProvenance`) fails the build if any rule ships
-without provenance. Planned next: per-rule external cryptographer sign-off, compliance
-profiles (`--profile cnsa-2.0` / `fips-140-3` / `dora`), and signed reports.
+without provenance. Planned next: per-rule external cryptographer sign-off and signed
+reports.
+
+## Compliance profiles
+
+`--profile <name>` classifies every finding against a named standard. It's a **lens over
+the findings already detected** — it adds no detection of its own, so it can't introduce
+false positives. Each finding is tagged `violation`, `not-applicable`, or `compliant`,
+and the standard's view of severity is applied (e.g. CNSA 2.0 raises quantum-vulnerable
+crypto to **critical**). The full inventory is preserved.
+
+| Profile | Standard | What it treats as a violation |
+|---|---|---|
+| `cnsa-2.0` | NSA CNSA 2.0 | Quantum-vulnerable public-key crypto (RSA, ECDSA, ECDH, DH, EdDSA) — **must migrate to PQC** — plus all weak/deprecated algorithms and misuse. |
+| `fips-140-3` | NIST FIPS 140-3 | Non-approved/legacy primitives (MD5, DES, RC4, …), undersized keys, weak protocols, and misuse. Classical RSA/ECDSA stay **approved** — reported `not-applicable`, not a violation. |
+| `dora` | EU DORA (Reg. 2022/2554) | Broken/deprecated algorithms, weak protocols, and misuse. Quantum-vulnerable crypto is surfaced as a risk but not yet a mandated violation. |
+
+The defining difference is how each standard treats classical public-key crypto: CNSA 2.0
+mandates the post-quantum migration, while FIPS 140-3 and DORA still permit RSA/ECDSA today.
+
+```sh
+# Classify findings against CNSA 2.0 in the terminal report
+cryptobom scan --profile cnsa-2.0 ./src
+
+# Gate a build only on violations of the standard. Under FIPS 140-3 a repo that
+# uses RSA-2048 (approved, quantum-vulnerable) does NOT fail; broken algorithms do.
+cryptobom scan --profile fips-140-3 --fail-on high ./src
+```
+
+The active profile and per-finding compliance status flow into all three outputs: the
+terminal tags each finding and counts violations; the CBOM records `cryptobom:profile`
+on the BOM and `cryptobom:compliance` on each component; SARIF records `profile` on the
+run and `compliance` on each result.
 
 ## Install & run (macOS)
 
@@ -225,6 +253,9 @@ cryptobom scan --format sarif ./path/to/java/project > results.sarif
 # CI gate: fail the build (exit 2) on any high+ finding
 cryptobom scan --fail-on high ./src
 
+# Classify findings against a compliance standard (see "Compliance profiles")
+cryptobom scan --profile cnsa-2.0 ./src
+
 # Baseline: record current findings, then surface only NEW ones on later scans
 cryptobom scan --write-baseline .cryptobom-baseline.json ./src
 cryptobom scan --baseline .cryptobom-baseline.json --fail-on medium ./src
@@ -267,12 +298,13 @@ steps:
       path: .                       # default
       sarif-file: cryptobom.sarif   # default
       cbom-file: cryptobom.cbom.json # default
+      profile: ""                   # optional: cnsa-2.0 | fips-140-3 | dora
   - uses: github/codeql-action/upload-sarif@v3
     with:
       sarif_file: ${{ steps.cryptobom.outputs.sarif-file }}
 ```
 
-**Inputs:** `path`, `sarif-file`, `cbom-file`.
+**Inputs:** `path`, `sarif-file`, `cbom-file`, `profile`.
 **Outputs:** `sarif-file`, `cbom-file` (the written paths).
 
 See [.github/workflows/scan.yml](.github/workflows/scan.yml) for the working

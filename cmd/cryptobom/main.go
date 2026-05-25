@@ -39,7 +39,10 @@ flags:
   --cbom file            also write a CycloneDX CBOM to file
   --sarif file           also write a SARIF 2.1.0 report to file
   --fail-on severity     exit non-zero (code 2) if a finding is >= this severity
-                         (critical | high | medium | low)
+                         (critical | high | medium | low). With --profile, only
+                         findings that violate the profile gate the build.
+  --profile name         classify findings against a compliance standard
+                         (cnsa-2.0 | fips-140-3 | dora)
   --baseline file        ignore findings recorded in the baseline (surface only new)
   --write-baseline file  write the current findings to a baseline file and exit
   --include-tests        also scan test code (test/ dirs, *_test.go, *Test.java, …)
@@ -87,7 +90,7 @@ func run(args []string) (int, error) {
 	format := "terminal"
 	noColor := false
 	includeTests := false
-	var path, cbomPath, sarifPath, failOn, baselinePath, writeBaselinePath string
+	var path, cbomPath, sarifPath, failOn, baselinePath, writeBaselinePath, profileName string
 	rest := args[1:]
 	for i := 0; i < len(rest); i++ {
 		a := rest[i]
@@ -105,6 +108,8 @@ func run(args []string) (int, error) {
 			sarifPath, i, err = flagValue("--sarif", rest, i)
 		case a == "--fail-on" || strings.HasPrefix(a, "--fail-on="):
 			failOn, i, err = flagValue("--fail-on", rest, i)
+		case a == "--profile" || strings.HasPrefix(a, "--profile="):
+			profileName, i, err = flagValue("--profile", rest, i)
 		case a == "--baseline" || strings.HasPrefix(a, "--baseline="):
 			baselinePath, i, err = flagValue("--baseline", rest, i)
 		case a == "--write-baseline" || strings.HasPrefix(a, "--write-baseline="):
@@ -126,6 +131,14 @@ func run(args []string) (int, error) {
 	}
 	if failOn != "" && sevRank(rules.Severity(failOn)) == 0 {
 		return 0, fmt.Errorf("invalid --fail-on %q (want critical, high, medium, or low)", failOn)
+	}
+	var profile *rules.Profile
+	if profileName != "" {
+		p, ok := rules.ProfileByID(profileName)
+		if !ok {
+			return 0, fmt.Errorf("invalid --profile %q (want %s)", profileName, strings.Join(rules.ProfileIDs(), ", "))
+		}
+		profile = p
 	}
 
 	findings, err := scan(path, includeTests)
@@ -149,15 +162,21 @@ func run(args []string) (int, error) {
 		findings = baseline.Filter(findings, set)
 	}
 
+	// A compliance profile is a lens over the findings: it classifies each against
+	// a standard and may raise a violation's severity. Detection is unchanged.
+	if profile != nil {
+		rules.ApplyProfile(findings, profile)
+	}
+
 	// File outputs are written independently of the stdout --format.
 	if cbomPath != "" {
-		if err := emitToFile(cbomPath, func(w io.Writer) error { return cbom.Emit(w, path, findings) }); err != nil {
+		if err := emitToFile(cbomPath, func(w io.Writer) error { return cbom.Emit(w, path, findings, profile) }); err != nil {
 			return 0, err
 		}
 		fmt.Fprintf(os.Stderr, "cryptobom: wrote CBOM to %s\n", cbomPath)
 	}
 	if sarifPath != "" {
-		if err := emitToFile(sarifPath, func(w io.Writer) error { return sarif.Emit(w, findings) }); err != nil {
+		if err := emitToFile(sarifPath, func(w io.Writer) error { return sarif.Emit(w, findings, profile) }); err != nil {
 			return 0, err
 		}
 		fmt.Fprintf(os.Stderr, "cryptobom: wrote SARIF to %s\n", sarifPath)
@@ -165,21 +184,39 @@ func run(args []string) (int, error) {
 
 	switch format {
 	case "cbom":
-		if err := cbom.Emit(os.Stdout, path, findings); err != nil {
+		if err := cbom.Emit(os.Stdout, path, findings, profile); err != nil {
 			return 0, err
 		}
 	case "sarif":
-		if err := sarif.Emit(os.Stdout, findings); err != nil {
+		if err := sarif.Emit(os.Stdout, findings, profile); err != nil {
 			return 0, err
 		}
 	default:
-		report.Write(os.Stdout, path, findings, !noColor && isTerminal(os.Stdout))
+		report.Write(os.Stdout, path, findings, !noColor && isTerminal(os.Stdout), profile)
 	}
 
-	if failOn != "" && anyAtOrAbove(findings, rules.Severity(failOn)) {
+	if failOn != "" && shouldFail(findings, rules.Severity(failOn), profile) {
 		return 2, nil
 	}
 	return 0, nil
+}
+
+// shouldFail reports whether any finding meets the --fail-on threshold. With a
+// profile active, only findings that violate the profile gate the build — a
+// weakness the standard does not treat as a breach (e.g. classical RSA under
+// FIPS 140-3) must not fail a compliance gate.
+func shouldFail(findings []rules.Finding, threshold rules.Severity, profile *rules.Profile) bool {
+	th := sevRank(threshold)
+	for _, f := range findings {
+		if sevRank(f.Severity) < th {
+			continue
+		}
+		if profile != nil && f.Compliance != rules.ComplianceViolation {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 // sevRank orders severities (higher = more severe); info is 0 and never gates.
@@ -195,16 +232,6 @@ func sevRank(s rules.Severity) int {
 		return 1
 	}
 	return 0
-}
-
-func anyAtOrAbove(findings []rules.Finding, threshold rules.Severity) bool {
-	th := sevRank(threshold)
-	for _, f := range findings {
-		if sevRank(f.Severity) >= th {
-			return true
-		}
-	}
-	return false
 }
 
 // flagValue resolves a flag's value given as "--flag value" or "--flag=value",

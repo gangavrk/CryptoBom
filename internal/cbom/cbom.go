@@ -19,18 +19,25 @@ import (
 )
 
 // Emit writes a CycloneDX CBOM (JSON) for findings to w. target names the
-// scanned path and is recorded as the BOM's subject component.
-func Emit(w io.Writer, target string, findings []rules.Finding) error {
-	bom := Build(target, findings)
+// scanned path and is recorded as the BOM's subject component. profile may be
+// nil; when set, each component carries its compliance status under that standard.
+func Emit(w io.Writer, target string, findings []rules.Finding, profile *rules.Profile) error {
+	bom := Build(target, findings, profile)
 	enc := cdx.NewBOMEncoder(w, cdx.BOMFileFormatJSON)
 	enc.SetPretty(true)
 	return enc.Encode(bom)
 }
 
 // Build assembles the BOM in memory (separated from encoding for testability).
-func Build(target string, findings []rules.Finding) *cdx.BOM {
+func Build(target string, findings []rules.Finding, profile *rules.Profile) *cdx.BOM {
 	bom := cdx.NewBOM()
 	bom.SerialNumber = newSerial()
+	props := []cdx.Property{
+		{Name: "cryptobom:rulepackVersion", Value: rules.RulePackVersion},
+	}
+	if profile != nil {
+		props = append(props, cdx.Property{Name: "cryptobom:profile", Value: profile.ID})
+	}
 	bom.Metadata = &cdx.Metadata{
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		Tools: &cdx.ToolsChoice{
@@ -44,9 +51,7 @@ func Build(target string, findings []rules.Finding) *cdx.BOM {
 			Type: cdx.ComponentTypeApplication,
 			Name: target,
 		},
-		Properties: &[]cdx.Property{
-			{Name: "cryptobom:rulepackVersion", Value: rules.RulePackVersion},
-		},
+		Properties: &props,
 	}
 
 	components := buildComponents(findings)
@@ -56,10 +61,11 @@ func Build(target string, findings []rules.Finding) *cdx.BOM {
 
 // group accumulates occurrences of one asset (keyed by rule + algorithm + mode).
 type group struct {
-	key   string
-	match rules.Match
-	scope string
-	occ   []cdx.EvidenceOccurrence
+	key        string
+	match      rules.Match
+	scope      string
+	compliance rules.Compliance
+	occ        []cdx.EvidenceOccurrence
 }
 
 func buildComponents(findings []rules.Finding) []cdx.Component {
@@ -72,7 +78,7 @@ func buildComponents(findings []rules.Finding) []cdx.Component {
 		}
 		g, ok := byKey[key]
 		if !ok {
-			g = &group{key: key, match: f.Match, scope: f.Scope}
+			g = &group{key: key, match: f.Match, scope: f.Scope, compliance: f.Compliance}
 			byKey[key] = g
 			order = append(order, key)
 		}
@@ -112,6 +118,9 @@ func componentFor(g *group) cdx.Component {
 	}
 	if g.scope != "" {
 		props = append(props, cdx.Property{Name: "cryptobom:scope", Value: g.scope})
+	}
+	if g.compliance != "" {
+		props = append(props, cdx.Property{Name: "cryptobom:compliance", Value: string(g.compliance)})
 	}
 	if m.Detail != "" {
 		props = append(props, cdx.Property{Name: "cryptobom:detail", Value: m.Detail})

@@ -63,6 +63,9 @@ type Finding struct {
 	Column   int // 1-based
 	Evidence string
 	Scope    string // "" for production code, "test" for test code
+
+	// Compliance is set by ApplyProfile when a --profile is active; "" otherwise.
+	Compliance Compliance
 }
 
 // factories are the JCA entry points we recognize. The analyzer only calls
