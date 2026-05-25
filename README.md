@@ -202,6 +202,18 @@ toolchain below is only needed for building from source. The tap is fed automati
 by the release workflow — see [packaging/homebrew/cryptobom.rb](packaging/homebrew/cryptobom.rb)
 and [Releases](#releases).
 
+**Install script (Linux & macOS).** A one-liner that downloads the right prebuilt
+binary, verifies its checksum, and installs it ([install.sh](install.sh)):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/<your-org>/cryptobom/main/install.sh | sh
+```
+
+Override behavior with env vars: `CRYPTOBOM_VERSION` (a tag, default latest),
+`CRYPTOBOM_INSTALL_DIR` (default `/usr/local/bin`, else `~/.local/bin`), and
+`CRYPTOBOM_REPO`. Supports linux/amd64, darwin/amd64, and darwin/arm64 (the release
+matrix); other platforms should build from source.
+
 ### Build from source
 
 **Prerequisites.** A C toolchain is required — the language parsers use tree-sitter via
