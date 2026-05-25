@@ -1,10 +1,10 @@
-# cryptobom Homebrew formula (prebuilt-binary).
+# cryptobom Homebrew formula (prebuilt binary), generated from a template.
 #
-# This is a TEMPLATE. The release workflow (.github/workflows/release.yml, the
-# `homebrew` job) renders the __PLACEHOLDERS__ on each tagged release and pushes
-# the result to your tap repo as Formula/cryptobom.rb. To bootstrap by hand,
-# replace __REPO__ (owner/repo), __VERSION__ (the tag without the leading "v"),
-# and the three __SHA_*__ values (from the release's checksums.txt).
+# Don't edit this file in the tap by hand: the release workflow
+# (.github/workflows/release.yml, the `homebrew` job) regenerates it on every
+# tagged release -- filling in the repo, version, and per-platform sha256 -- and
+# commits it here. To change it, edit the template at
+# packaging/homebrew/cryptobom.rb in the main repo.
 #
 # A prebuilt binary is shipped rather than built from source because the parsers
 # use tree-sitter via cgo: the binary is platform-specific and needs a C

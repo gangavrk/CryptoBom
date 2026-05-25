@@ -9,7 +9,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
 > **Java**, **Python**, **Go**, **Kotlin**, **C#**, **JavaScript/TypeScript**, and
 > **C/C++** source — plus certificate/key files and infra config (Spring Boot, nginx,
-> Apache, Kubernetes) — and emits a CBOM, a SARIF report, and a terminal report.
+> Apache, Kubernetes, Terraform) — and emits a CBOM, a SARIF report, and a terminal report.
 > Findings from all inputs merge into one CBOM.
 
 ## What it detects today (7 languages + config)
@@ -17,17 +17,17 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 | Category | Examples |
 |---|---|
 | Quantum-vulnerable | RSA, ECDSA, Ed25519, ECDH, DSA, DH key generation / signatures / agreement |
-| Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; undersized keys/curves (RSA-1024, P-192) |
-| Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
+| Weak / deprecated | MD5, SHA-1, DES, 3DES (DESede), RC4; HMAC over a broken hash (HMAC-MD5); undersized keys/curves (RSA-1024, P-192) |
+| Misuse | ECB mode on block ciphers (incl. the JCE default when no mode is given); RSA PKCS#1 v1.5 *encryption* padding (Bleichenbacher); hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
 | Protocols & TLS config | SSL 2/3 and TLS 1.0/1.1 (broken/deprecated); weak cipher suites (RC4, 3DES, NULL, EXPORT, anon). Detected across every form a TLS version takes — see below |
 | Certificates & key material | Committed private keys and keystores (`.pem`/`.key`/`.p12`/`.jks`, SSH keys); X.509 certificates parsed for SHA-1/MD5 signatures, RSA-1024/undersized or quantum-vulnerable keys, and expiry |
-| Post-quantum (quantum-safe) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, HQC (+ pre-standard Kyber/Dilithium/SPHINCS+/Falcon and hybrids) — inventoried as **positive** assets to track migration progress |
+| Post-quantum (quantum-safe) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, HQC, FrodoKEM, Classic-McEliece, BIKE, XMSS/LMS (+ pre-standard Kyber/Dilithium/SPHINCS+/Falcon and hybrids) — inventoried as **positive** assets to track migration progress |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
 - **Java** — the standard JCA factory calls (`Cipher`, `MessageDigest`,
-  `KeyPairGenerator`, `Signature`, `KeyAgreement`, `KeyGenerator`) with string-literal
-  algorithm arguments.
+  `KeyPairGenerator`, `Signature`, `KeyAgreement`, `KeyGenerator`, `Mac`) with
+  string-literal algorithm arguments.
 - **Python** — qualified calls from the two dominant libraries: pyca/cryptography
   (`hashes.SHA1()`, `modes.ECB()`, `rsa.generate_private_key()`, …) and pycryptodome
   (`hashlib.md5()`, `AES.new(key, AES.MODE_ECB)`, `RSA.generate()`, …).
@@ -124,6 +124,18 @@ tagged — so ordinary equality checks are never touched. The constant-time form
 recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 `subtle.ConstantTimeCompare`/`hmac.Equal`, `CryptographicOperations.FixedTimeEquals`.
 
+**Padding, default mode, and weak MACs.** Three further precise checks:
+
+- **Default ECB.** A JCA block cipher requested with no mode — `Cipher.getInstance("AES")` —
+  is flagged, because the JCE silently defaults to ECB. This is JCA-specific (Java/Kotlin);
+  Go and Python pass a bare algorithm name with no such default, so they're never affected.
+- **RSA PKCS#1 v1.5 encryption padding.** `rsa.EncryptPKCS1v15` (Go),
+  `Cipher.getInstance("RSA/ECB/PKCS1Padding")` (Java/Kotlin), and pycryptodome's
+  `PKCS1_v1_5` cipher are flagged as Bleichenbacher/ROBOT-vulnerable. RSA *signatures*
+  (PKCS#1 v1.5 is standard there) and RSA-OAEP are deliberately not flagged.
+- **Weak MAC.** A MAC over a broken hash (HMAC-MD5/MD4/MD2) is flagged via the JCA `Mac`
+  factory (Java/Kotlin) and the .NET `HMACMD5` type; HMAC-SHA* is not flagged.
+
 ## Rule provenance & trust
 
 Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. The
@@ -188,9 +200,19 @@ terminal tags each finding and counts violations; the CBOM records `cryptobom:pr
 on the BOM and `cryptobom:compliance` on each component; SARIF records `profile` on the
 run and `compliance` on each result.
 
+**Without `--profile` (the default),** there's no compliance classification at all: every
+finding is reported at its intrinsic severity, nothing is tagged
+`violation`/`not-applicable`/`compliant`, the `cryptobom:profile`/`cryptobom:compliance`
+and SARIF `profile`/`compliance` fields are omitted, and `--fail-on` gates on raw
+severity. The practical effect is that the standard-specific nuance disappears — e.g. a
+quantum-vulnerable RSA-2048 keygen is `high` and **will** trip `--fail-on high`, whereas
+under `--profile fips-140-3` it's `not-applicable` and passes the gate. So the default is
+the honest "show me all cryptographic risk" view; reach for a profile only when you need
+to answer "are we compliant with *this* standard."
+
 ## Install & run (macOS)
 
-**Homebrew (prebuilt binary).** Once the tap is published, install without a toolchain:
+**Homebrew (prebuilt binary).** Install without a toolchain:
 
 ```sh
 brew install gangavrk/tap/cryptobom   # or: brew tap gangavrk/tap && brew install cryptobom
@@ -227,7 +249,7 @@ brew install go               # Go 1.26+
 **Build the binary:**
 
 ```sh
-git clone <repo-url> cryptobom && cd cryptobom
+git clone https://github.com/gangavrk/CryptoBom.git cryptobom && cd cryptobom
 go build -o cryptobom ./cmd/cryptobom
 ```
 
@@ -323,7 +345,7 @@ permissions:
   security-events: write # to upload SARIF
 
 steps:
-  - uses: actions/checkout@v4
+  - uses: actions/checkout@v6
   - id: cryptobom
     uses: gangavrk/CryptoBom@v1 # not yet published; this repo dogfoods it via `uses: ./`
     with:
@@ -331,7 +353,7 @@ steps:
       sarif-file: cryptobom.sarif   # default
       cbom-file: cryptobom.cbom.json # default
       profile: ""                   # optional: cnsa-2.0 | fips-140-3 | dora
-  - uses: github/codeql-action/upload-sarif@v3
+  - uses: github/codeql-action/upload-sarif@v4
     with:
       sarif_file: ${{ steps.cryptobom.outputs.sarif-file }}
 ```
