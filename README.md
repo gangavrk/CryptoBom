@@ -127,13 +127,55 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
 highest false-positive risk).
 
-## Build
+## Install & run (macOS)
+
+**Prerequisites.** A C toolchain is required — the language parsers use tree-sitter via
+cgo. On macOS that means the Xcode Command Line Tools and Go:
 
 ```sh
+xcode-select --install        # provides clang (cgo)
+brew install go               # Go 1.26+
+```
+
+**Build the binary:**
+
+```sh
+git clone <repo-url> cryptobom && cd cryptobom
 go build -o cryptobom ./cmd/cryptobom
 ```
 
-> Requires a C toolchain — the language parsers use tree-sitter via cgo.
+This produces a `cryptobom` binary in the current directory. You can run it right away
+without installing — from the repo directory:
+
+```sh
+./cryptobom scan .            # scan the current directory
+./cryptobom version
+```
+
+**Put it on your `PATH`** so `cryptobom` works from anywhere (pick one):
+
+```sh
+# Option A — copy into /usr/local/bin (commonly already on PATH; needs sudo)
+sudo cp cryptobom /usr/local/bin/cryptobom
+
+# Option B — go install, then add the Go bin dir to PATH (zsh)
+go install ./cmd/cryptobom
+echo 'export PATH="$HOME/go/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+```
+
+**Verify:**
+
+```sh
+cryptobom version            # prints the version
+cryptobom scan /path/to/repo
+```
+
+> If you see `zsh: command not found: cryptobom`, the binary isn't on your `PATH` —
+> use `./cryptobom` from the repo, or complete an install option above.
+
+> Apple Silicon and Intel both work; the binary is built natively for your machine.
+> A prebuilt binary and container image are also published per release (see
+> [Releases](#releases)).
 
 ## Usage
 
