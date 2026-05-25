@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/cryptobom/cryptobom/internal/rules"
 )
@@ -71,7 +72,11 @@ func Write(w io.Writer, target string, findings []rules.Finding, color bool) {
 		}
 		fmt.Fprintf(w, "  %s%-8s%s %s%s\n", sevCol, sevLabel(f.Severity), c.reset, f.Title, scope)
 		fmt.Fprintf(w, "    %s%s:%d%s  %s%s%s\n", c.dim, f.File, f.Line, c.reset, c.dim, f.Evidence, c.reset)
-		fmt.Fprintf(w, "    %srule %s · %s%s\n", c.dim, f.RuleID, f.Category, c.reset)
+		cwe := ""
+		if prov, ok := rules.ProvenanceFor(f.RuleID); ok && len(prov.CWE) > 0 {
+			cwe = " · " + strings.Join(prov.CWE, ",")
+		}
+		fmt.Fprintf(w, "    %srule %s · %s%s%s\n", c.dim, f.RuleID, f.Category, cwe, c.reset)
 		if f.Remediation != "" {
 			fmt.Fprintf(w, "    %s→ %s%s\n", c.dim, f.Remediation, c.reset)
 		}
@@ -119,6 +124,8 @@ func writeSummary(w io.Writer, c colors, problems, inventory []rules.Finding) {
 	if other > 0 {
 		fmt.Fprintf(w, "%s%d other cryptographic asset(s) inventoried (see CBOM).%s\n", c.dim, other, c.reset)
 	}
+	fmt.Fprintf(w, "%srules: cryptobom rulepack %s · standard citations in the CBOM/SARIF%s\n",
+		c.dim, rules.RulePackVersion, c.reset)
 	fmt.Fprintln(w)
 }
 

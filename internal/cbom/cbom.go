@@ -9,6 +9,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	cdx "github.com/CycloneDX/cyclonedx-go"
@@ -42,6 +43,9 @@ func Build(target string, findings []rules.Finding) *cdx.BOM {
 		Component: &cdx.Component{
 			Type: cdx.ComponentTypeApplication,
 			Name: target,
+		},
+		Properties: &[]cdx.Property{
+			{Name: "cryptobom:rulepackVersion", Value: rules.RulePackVersion},
 		},
 	}
 
@@ -116,13 +120,29 @@ func componentFor(g *group) cdx.Component {
 		props = append(props, cdx.Property{Name: "cryptobom:remediation", Value: m.Remediation})
 	}
 
+	var extRefs *[]cdx.ExternalReference
+	if prov, ok := rules.ProvenanceFor(m.RuleID); ok {
+		props = append(props, cdx.Property{Name: "cryptobom:standardStatus", Value: string(prov.Status)})
+		if len(prov.CWE) > 0 {
+			props = append(props, cdx.Property{Name: "cryptobom:cwe", Value: strings.Join(prov.CWE, ", ")})
+		}
+		refs := make([]cdx.ExternalReference, 0, len(prov.References))
+		for _, r := range prov.References {
+			refs = append(refs, cdx.ExternalReference{URL: r.URL, Comment: r.String(), Type: cdx.ERTypeDocumentation})
+		}
+		if len(refs) > 0 {
+			extRefs = &refs
+		}
+	}
+
 	return cdx.Component{
-		BOMRef:           g.key,
-		Type:             cdx.ComponentTypeCryptographicAsset,
-		Name:             assetName(m),
-		CryptoProperties: cryptoProperties(m),
-		Evidence:         &cdx.Evidence{Occurrences: &occ},
-		Properties:       &props,
+		BOMRef:             g.key,
+		Type:               cdx.ComponentTypeCryptographicAsset,
+		Name:               assetName(m),
+		CryptoProperties:   cryptoProperties(m),
+		Evidence:           &cdx.Evidence{Occurrences: &occ},
+		Properties:         &props,
+		ExternalReferences: extRefs,
 	}
 }
 

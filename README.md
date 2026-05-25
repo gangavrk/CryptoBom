@@ -127,6 +127,33 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 Non-constant-time comparison detection is not done yet (it needs MAC-source taint, the
 highest false-positive risk).
 
+## Rule provenance & trust
+
+Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. Each
+rule in the catalog ([internal/rules/provenance.go](internal/rules/provenance.go)) records:
+
+- a **CWE** weakness class (e.g. `CWE-327`),
+- the **standard's status** — `finalized`, `draft`, or `guidance` — so you know whether
+  it rests on a settled standard,
+- **citations** to the authority (NIST FIPS 203/204/205, NSA CNSA 2.0, NIST SP 800-131A /
+  800-57 / 800-52, IETF RFC 8996/7568, OWASP, …) with URLs,
+- and the **rule-pack version** (`RulePackVersion`), stamped on every report.
+
+This flows into all three outputs:
+
+- **SARIF** — each rule gets a `helpUri`, a `help` block listing its citations, a
+  `standardStatus` property, and `external/cwe/cwe-NNN` tags (rendered by code-scanning
+  UIs). The run records `properties.rulepackVersion`.
+- **CBOM** — each component gets `externalReferences` (the standards) plus
+  `cryptobom:cwe` / `cryptobom:standardStatus` properties; the BOM metadata records the
+  rule-pack version.
+- **terminal** — the CWE is shown on each finding and the rule-pack version in the footer.
+
+The catalog is open source and reviewed via pull request, so its change history is the
+audit trail. A test (`TestEveryRuleHasProvenance`) fails the build if any rule ships
+without provenance. Planned next: per-rule external cryptographer sign-off, compliance
+profiles (`--profile cnsa-2.0` / `fips-140-3` / `dora`), and signed reports.
+
 ## Install & run (macOS)
 
 **Prerequisites.** A C toolchain is required — the language parsers use tree-sitter via

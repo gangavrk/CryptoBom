@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"sort"
+	"strings"
 
 	"github.com/cryptobom/cryptobom/internal/rules"
 	"github.com/cryptobom/cryptobom/internal/version"
@@ -24,8 +25,9 @@ type document struct {
 }
 
 type run struct {
-	Tool    tool     `json:"tool"`
-	Results []result `json:"results"`
+	Tool       tool              `json:"tool"`
+	Results    []result          `json:"results"`
+	Properties map[string]string `json:"properties,omitempty"`
 }
 
 type tool struct {
@@ -43,6 +45,8 @@ type reportingDescriptor struct {
 	Name             string         `json:"name,omitempty"`
 	ShortDescription text           `json:"shortDescription"`
 	FullDescription  *text          `json:"fullDescription,omitempty"`
+	HelpURI          string         `json:"helpUri,omitempty"`
+	Help             *text          `json:"help,omitempty"`
 	DefaultConfig    configuration  `json:"defaultConfiguration"`
 	Properties       map[string]any `json:"properties,omitempty"`
 }
@@ -139,9 +143,37 @@ func build(findings []rules.Finding) document {
 		Schema:  schemaURI,
 		Version: "2.1.0",
 		Runs: []run{{
-			Tool:    tool{Driver: driver{Name: toolName, Version: version.Version, Rules: descriptors}},
-			Results: results,
+			Tool:       tool{Driver: driver{Name: toolName, Version: version.Version, Rules: descriptors}},
+			Results:    results,
+			Properties: map[string]string{"rulepackVersion": rules.RulePackVersion},
 		}},
+	}
+}
+
+// applyProvenance enriches a rule descriptor with its catalog provenance: a helpUri
+// + citations, the standard's status, and CWE tags (rendered by code-scanning UIs).
+func applyProvenance(d *reportingDescriptor, ruleID string) {
+	prov, ok := rules.ProvenanceFor(ruleID)
+	if !ok {
+		return
+	}
+	refs := make([]string, len(prov.References))
+	for i, r := range prov.References {
+		refs[i] = r.String() + " — " + r.URL
+	}
+	if len(prov.References) > 0 {
+		d.HelpURI = prov.References[0].URL
+		d.Help = &text{Text: "Basis: " + strings.Join(refs, "; ") + ". Standard status: " + string(prov.Status) + "."}
+	}
+	d.Properties["standardStatus"] = string(prov.Status)
+	d.Properties["references"] = refs
+	if len(prov.CWE) > 0 {
+		d.Properties["cwe"] = prov.CWE
+		tags := d.Properties["tags"].([]string)
+		for _, c := range prov.CWE {
+			tags = append(tags, "external/cwe/"+strings.ToLower(c))
+		}
+		d.Properties["tags"] = tags
 	}
 }
 
@@ -178,6 +210,7 @@ func descriptorsFor(problems []rules.Finding) ([]reportingDescriptor, map[string
 		if f.Remediation != "" {
 			d.FullDescription = &text{Text: f.Remediation}
 		}
+		applyProvenance(&d, id)
 		descriptors = append(descriptors, d)
 	}
 	return descriptors, index
