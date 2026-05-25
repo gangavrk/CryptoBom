@@ -7,12 +7,12 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java**, **Python**, **Go**, **Kotlin**, **C#**, and **JavaScript/TypeScript** source —
-> plus certificate/key files and **Spring Boot config** (`application.properties` / `.yml`)
-> — and emits a CBOM, a SARIF report, and a terminal report. Findings from all inputs
-> merge into one CBOM.
+> **Java**, **Python**, **Go**, **Kotlin**, **C#**, **JavaScript/TypeScript**, and
+> **C/C++** source — plus certificate/key files and infra config (Spring Boot, nginx,
+> Apache, Kubernetes) — and emits a CBOM, a SARIF report, and a terminal report.
+> Findings from all inputs merge into one CBOM.
 
-## What it detects today (Java, Python, Go, Kotlin, C#, JS/TS & config)
+## What it detects today (7 languages + config)
 
 | Category | Examples |
 |---|---|
@@ -45,6 +45,10 @@ Detection is precise by design. We favor **zero false positives over completenes
   (`createHash("md5")`, `createCipheriv("aes-128-ecb", …)`, `generateKeyPair("rsa", …)`)
   and crypto-js (`CryptoJS.MD5(…)`, `CryptoJS.DES`, `CryptoJS.mode.ECB`). Parses `.js`,
   `.mjs`, `.cjs`, `.jsx`, `.ts`, and `.tsx`.
+- **C / C++** — OpenSSL: the function-name-encoded API (`MD5(…)`, `EVP_des_ede3_cbc()`,
+  `EVP_aes_128_ecb()`, `RSA_generate_key_ex()`), the 3.0 fetch API
+  (`EVP_MD_fetch(…, "MD5", …)`), TLS method constructors (`SSLv3_method()`), and version
+  constants (`TLS1_1_VERSION`). Parses `.c/.h/.cpp/.cc/.cxx/.hpp/.hh`.
 - **Post-quantum algorithms** — when a NIST PQC algorithm (or a pre-standard / library
   name) is already in use, it's inventoried as **quantum-safe** rather than flagged, so
   the tool measures migration *progress*, not just debt. Recognized via JCA

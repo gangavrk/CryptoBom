@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	cfamilyanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/cfamily"
 	configanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/config"
 	csharpanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/csharp"
 	golanganalyzer "github.com/cryptobom/cryptobom/internal/analyzers/golang"
@@ -317,6 +318,13 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".jsx") ||
 		strings.HasSuffix(name, ".ts") ||
 		strings.HasSuffix(name, ".tsx") ||
+		strings.HasSuffix(name, ".c") ||
+		strings.HasSuffix(name, ".h") ||
+		strings.HasSuffix(name, ".cpp") ||
+		strings.HasSuffix(name, ".cc") ||
+		strings.HasSuffix(name, ".cxx") ||
+		strings.HasSuffix(name, ".hpp") ||
+		strings.HasSuffix(name, ".hh") ||
 		strings.HasSuffix(name, ".properties") ||
 		strings.HasSuffix(name, ".yml") ||
 		strings.HasSuffix(name, ".yaml") ||
@@ -346,6 +354,10 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 	case strings.HasSuffix(p, ".js"), strings.HasSuffix(p, ".mjs"), strings.HasSuffix(p, ".cjs"),
 		strings.HasSuffix(p, ".jsx"), strings.HasSuffix(p, ".ts"), strings.HasSuffix(p, ".tsx"):
 		findings, err = jsanalyzer.Analyze(p, src)
+	case strings.HasSuffix(p, ".c"), strings.HasSuffix(p, ".h"), strings.HasSuffix(p, ".cpp"),
+		strings.HasSuffix(p, ".cc"), strings.HasSuffix(p, ".cxx"), strings.HasSuffix(p, ".hpp"),
+		strings.HasSuffix(p, ".hh"):
+		findings, err = cfamilyanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".properties"),
 		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"), strings.HasSuffix(p, ".conf"):
 		findings, err = configanalyzer.Analyze(p, src)
