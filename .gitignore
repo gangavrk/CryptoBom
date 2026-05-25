@@ -15,5 +15,9 @@ coverage.*
 .vscode/
 *.swp
 
+# Scan output artifacts
+*.sarif
+*.cbom.json
+
 # Local tooling
 .claude/
