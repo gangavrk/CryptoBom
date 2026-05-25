@@ -69,6 +69,59 @@ jobs:
             dist/checksums.txt
           generate_release_notes: true
 
+  homebrew:
+    # Render the formula from the release tarballs and publish it to the tap.
+    # Enable by setting two repo settings:
+    #   - secret HOMEBREW_TAP_TOKEN: a PAT with push access to the tap repo
+    #   - variable HOMEBREW_TAP_REPO: the tap, e.g. "your-org/homebrew-tap"
+    # When unset, the formula is still rendered (a dry run) but not pushed, so a
+    # release never fails just because the tap isn't configured yet.
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      TAP_REPO: ${{ vars.HOMEBREW_TAP_REPO }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Render formula
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          sha() { sha256sum "dist/cryptobom-${tag}-$1.tar.gz" | cut -d' ' -f1; }
+          sed \
+            -e "s|__REPO__|${GITHUB_REPOSITORY}|g" \
+            -e "s|__VERSION__|${version}|g" \
+            -e "s|__SHA_DARWIN_ARM64__|$(sha darwin-arm64)|g" \
+            -e "s|__SHA_DARWIN_AMD64__|$(sha darwin-amd64)|g" \
+            -e "s|__SHA_LINUX_AMD64__|$(sha linux-amd64)|g" \
+            packaging/homebrew/cryptobom.rb > rendered-cryptobom.rb
+          echo "--- rendered Formula/cryptobom.rb ---"
+          cat rendered-cryptobom.rb
+
+      - name: Publish to tap
+        if: ${{ env.TAP_TOKEN != '' && env.TAP_REPO != '' }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git" tap
+          mkdir -p tap/Formula
+          cp rendered-cryptobom.rb tap/Formula/cryptobom.rb
+          cd tap
+          git add Formula/cryptobom.rb
+          if git diff --cached --quiet; then
+            echo "formula unchanged; nothing to publish"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="github-actions[bot]@users.noreply.github.com" \
+              commit -m "cryptobom ${GITHUB_REF_NAME}"
+          git push
+
   image:
     needs: binaries
     runs-on: ubuntu-latest

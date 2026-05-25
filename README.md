@@ -190,6 +190,20 @@ run and `compliance` on each result.
 
 ## Install & run (macOS)
 
+**Homebrew (prebuilt binary).** Once the tap is published, install without a toolchain:
+
+```sh
+brew install <your-org>/tap/cryptobom   # or: brew tap <your-org>/tap && brew install cryptobom
+cryptobom version
+```
+
+The formula ships the prebuilt binary from the release (no build step), so the C
+toolchain below is only needed for building from source. The tap is fed automatically
+by the release workflow — see [packaging/homebrew/cryptobom.rb](packaging/homebrew/cryptobom.rb)
+and [Releases](#releases).
+
+### Build from source
+
 **Prerequisites.** A C toolchain is required — the language parsers use tree-sitter via
 cgo. On macOS that means the Xcode Command Line Tools and Go:
 
@@ -331,6 +345,15 @@ pushes a versioned container image to GHCR (`ghcr.io/<owner>/cryptobom:<tag>` an
 
 Current matrix: `linux/amd64`, `darwin/amd64`, `darwin/arm64`. (Windows and
 `linux/arm64` can be added as matrix entries when needed.)
+
+**Homebrew tap.** The `homebrew` job renders
+[packaging/homebrew/cryptobom.rb](packaging/homebrew/cryptobom.rb) from the release
+tarballs (version + per-platform `sha256`) and pushes it to your tap. Enable it with
+two repo settings: a secret `HOMEBREW_TAP_TOKEN` (a PAT with push access to the tap
+repo) and a variable `HOMEBREW_TAP_REPO` (e.g. `your-org/homebrew-tap`). The tap repo
+must be named `homebrew-<name>` so `brew tap your-org/<name>` resolves to it. Until
+both are set the job still runs as a dry run (renders the formula, doesn't push), so
+releases never fail for want of a configured tap.
 
 ## License
 
