@@ -73,7 +73,7 @@ jobs:
     # Render the formula from the release tarballs and publish it to the tap.
     # Enable by setting two repo settings:
     #   - secret HOMEBREW_TAP_TOKEN: a PAT with push access to the tap repo
-    #   - variable HOMEBREW_TAP_REPO: the tap, e.g. "your-org/homebrew-tap"
+    #   - variable HOMEBREW_TAP_REPO: the tap, e.g. "gangavrk/homebrew-tap"
     # When unset, the formula is still rendered (a dry run) but not pushed, so a
     # release never fails just because the tap isn't configured yet.
     needs: release

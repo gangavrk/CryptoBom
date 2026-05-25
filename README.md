@@ -193,7 +193,7 @@ run and `compliance` on each result.
 **Homebrew (prebuilt binary).** Once the tap is published, install without a toolchain:
 
 ```sh
-brew install <your-org>/tap/cryptobom   # or: brew tap <your-org>/tap && brew install cryptobom
+brew install gangavrk/tap/cryptobom   # or: brew tap gangavrk/tap && brew install cryptobom
 cryptobom version
 ```
 
@@ -206,7 +206,7 @@ and [Releases](#releases).
 binary, verifies its checksum, and installs it ([install.sh](install.sh)):
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/<your-org>/cryptobom/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/gangavrk/CryptoBom/main/install.sh | sh
 ```
 
 Override behavior with env vars: `CRYPTOBOM_VERSION` (a tag, default latest),
@@ -325,7 +325,7 @@ permissions:
 steps:
   - uses: actions/checkout@v4
   - id: cryptobom
-    uses: cryptobom/cryptobom@v1 # not yet published; this repo dogfoods it via `uses: ./`
+    uses: gangavrk/CryptoBom@v1 # not yet published; this repo dogfoods it via `uses: ./`
     with:
       path: .                       # default
       sarif-file: cryptobom.sarif   # default
@@ -352,7 +352,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 It builds platform binaries on native runners (cgo can't be cleanly
 cross-compiled), attaches them with `checksums.txt` to a GitHub Release, and
-pushes a versioned container image to GHCR (`ghcr.io/<owner>/cryptobom:<tag>` and
+pushes a versioned container image to GHCR (`ghcr.io/gangavrk/cryptobom:<tag>` and
 `:latest`). The binary and image report the tag via `cryptobom version`.
 
 Current matrix: `linux/amd64`, `darwin/amd64`, `darwin/arm64`. (Windows and
@@ -362,8 +362,8 @@ Current matrix: `linux/amd64`, `darwin/amd64`, `darwin/arm64`. (Windows and
 [packaging/homebrew/cryptobom.rb](packaging/homebrew/cryptobom.rb) from the release
 tarballs (version + per-platform `sha256`) and pushes it to your tap. Enable it with
 two repo settings: a secret `HOMEBREW_TAP_TOKEN` (a PAT with push access to the tap
-repo) and a variable `HOMEBREW_TAP_REPO` (e.g. `your-org/homebrew-tap`). The tap repo
-must be named `homebrew-<name>` so `brew tap your-org/<name>` resolves to it. Until
+repo) and a variable `HOMEBREW_TAP_REPO` (e.g. `gangavrk/homebrew-tap`). The tap repo
+must be named `homebrew-<name>` so `brew tap gangavrk/<name>` resolves to it. Until
 both are set the job still runs as a dry run (renders the formula, doesn't push), so
 releases never fail for want of a configured tap.
 

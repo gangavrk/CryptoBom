@@ -4,18 +4,17 @@
 # Downloads the prebuilt binary for your platform from the GitHub release,
 # verifies its sha256 against the release checksums, and installs it.
 #
-#   curl -fsSL https://raw.githubusercontent.com/<your-org>/cryptobom/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/gangavrk/CryptoBom/main/install.sh | sh
 #
 # Environment overrides:
 #   CRYPTOBOM_VERSION      release tag to install (default: latest), e.g. v0.1.0
 #   CRYPTOBOM_INSTALL_DIR  install directory (default: /usr/local/bin, else ~/.local/bin)
-#   CRYPTOBOM_REPO         GitHub owner/repo (default: cryptobom/cryptobom)
+#   CRYPTOBOM_REPO         GitHub owner/repo (default: gangavrk/CryptoBom)
 #
-# Maintainers: set CRYPTOBOM_REPO's default below to the real GitHub repo before
-# publishing this script, and use that repo in the raw URL above.
+# Forks: override the repo with CRYPTOBOM_REPO, or change the default below.
 set -eu
 
-REPO="${CRYPTOBOM_REPO:-cryptobom/cryptobom}"
+REPO="${CRYPTOBOM_REPO:-gangavrk/CryptoBom}"
 VERSION="${CRYPTOBOM_VERSION:-latest}"
 INSTALL_DIR="${CRYPTOBOM_INSTALL_DIR:-}"
 BIN="cryptobom"
