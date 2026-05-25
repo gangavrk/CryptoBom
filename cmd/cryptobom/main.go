@@ -320,6 +320,7 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".properties") ||
 		strings.HasSuffix(name, ".yml") ||
 		strings.HasSuffix(name, ".yaml") ||
+		strings.HasSuffix(name, ".conf") ||
 		materialanalyzer.IsMaterialFile(name)
 }
 
@@ -346,7 +347,7 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 		strings.HasSuffix(p, ".jsx"), strings.HasSuffix(p, ".ts"), strings.HasSuffix(p, ".tsx"):
 		findings, err = jsanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".properties"),
-		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"):
+		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"), strings.HasSuffix(p, ".conf"):
 		findings, err = configanalyzer.Analyze(p, src)
 	case materialanalyzer.IsMaterialFile(filepath.Base(p)):
 		findings, err = materialanalyzer.Analyze(p, src)

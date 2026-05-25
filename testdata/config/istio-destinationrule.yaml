@@ -1,0 +1,11 @@
+# Istio DestinationRule TLS sample (Kubernetes YAML). minProtocolVersion below
+# TLS 1.2 is flagged via the broadened protocol-key matching.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: example
+spec:
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      minProtocolVersion: TLSV1_1

@@ -57,11 +57,13 @@ Detection is precise by design. We favor **zero false positives over completenes
   populate the CycloneDX `certificate` and `related-crypto-material` asset types — so all
   four CBOM asset types (algorithm, protocol, certificate, related-crypto-material) are
   now emitted.
-- **Spring Boot config** — `application.properties` / `application.yml` are parsed for
-  `server.ssl.protocol`, `server.ssl.enabled-protocols`, and `server.ssl.ciphers`
-  (TLS versions are often configured here, not in code). Deprecated protocols and weak
-  cipher suites are flagged with their line number; TLS 1.2/1.3 are inventoried. Each
-  TLS version becomes a CycloneDX `protocol` asset (`type: tls`, `version: …`).
+- **Infra & framework config** — TLS versions are usually configured outside code, so
+  these are parsed too: **Spring Boot** (`application.properties`/`.yml`:
+  `server.ssl.protocol`/`enabled-protocols`/`ciphers`), **nginx** (`ssl_protocols`),
+  **Apache** (`SSLProtocol`, honoring its `+`/`-` enable/disable semantics), and
+  **Kubernetes / Istio / ingress** YAML (`minProtocolVersion`, `tls-min-version`, …).
+  Deprecated protocols and weak cipher suites are flagged with their line number; TLS
+  1.2/1.3 are inventoried as CycloneDX `protocol` assets.
 
 **TLS versions in every form.** A TLS/SSL version is written differently per platform;
 all of these are now recognized and mapped to the same protocol assets:

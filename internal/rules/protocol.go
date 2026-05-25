@@ -8,20 +8,23 @@ import "strings"
 // and the generic "TLS" selector are inventoried.
 func EvalProtocol(proto string) []Match {
 	key := strings.ToUpper(strings.TrimSpace(proto))
-	key = strings.NewReplacer("_", "", " ", "", "V", "").Replace(key) // SSLv3 -> SSL3, TLSv1.2 -> TLS1.2
+	// Normalize the many spellings to a dotless form: SSLv3 -> SSL3, TLSv1.2 ->
+	// TLS12, TLSV1_1 (Istio) -> TLS11, TLSv1_method (Node) -> TLS1METHOD.
+	key = strings.NewReplacer("_", "", ".", "", " ", "", "V", "").Replace(key)
+	key = strings.TrimSuffix(key, "METHOD")
 
 	switch key {
 	case "SSL2", "SSL2HELLO":
 		return []Match{weakProtocol("SSLv2", "2.0", SeverityHigh, "SSL 2.0 is broken", proto)}
 	case "SSL", "SSL3":
 		return []Match{weakProtocol("SSLv3", "3.0", SeverityHigh, "SSL 3.0 is broken (POODLE)", proto)}
-	case "TLS1", "TLS1.0":
+	case "TLS1", "TLS10":
 		return []Match{weakProtocol("TLSv1.0", "1.0", SeverityMedium, "TLS 1.0 is deprecated", proto)}
-	case "TLS1.1":
+	case "TLS11":
 		return []Match{weakProtocol("TLSv1.1", "1.1", SeverityMedium, "TLS 1.1 is deprecated", proto)}
-	case "TLS", "TLS1.2":
+	case "TLS", "TLS12":
 		return []Match{invProtocol("TLSv1.2", "1.2", proto)}
-	case "TLS1.3":
+	case "TLS13":
 		return []Match{invProtocol("TLSv1.3", "1.3", proto)}
 	}
 	return nil
