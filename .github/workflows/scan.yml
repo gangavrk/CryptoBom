@@ -12,6 +12,10 @@ permissions:
   contents: read
   security-events: write # required to upload SARIF to code scanning
 
+env:
+  # Run JavaScript actions on Node 24; Node 20 is deprecated (forced off mid-2026).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   scan:
     runs-on: ubuntu-latest

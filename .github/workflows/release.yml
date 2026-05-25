@@ -12,6 +12,12 @@ permissions:
   contents: write # create the GitHub Release
   packages: write # push the image to GHCR
 
+env:
+  # Run JavaScript actions on Node 24; Node 20 is deprecated (forced off mid-2026).
+  # Lets us keep the current, well-tested action versions until they ship
+  # Node 24-native majors, at which point this can be dropped.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   binaries:
     name: build ${{ matrix.goos }}/${{ matrix.goarch }}
