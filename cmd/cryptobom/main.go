@@ -15,6 +15,7 @@ import (
 	csharpanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/csharp"
 	golanganalyzer "github.com/cryptobom/cryptobom/internal/analyzers/golang"
 	javaanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/java"
+	jsanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/javascript"
 	kotlinanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/kotlin"
 	materialanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/material"
 	pythonanalyzer "github.com/cryptobom/cryptobom/internal/analyzers/python"
@@ -295,6 +296,8 @@ func isTestFile(name string) bool {
 		return true
 	case strings.HasSuffix(name, "_test.py"):
 		return true
+	case strings.Contains(name, ".test.") || strings.Contains(name, ".spec."): // JS/TS
+		return true
 	case strings.HasSuffix(base, "Test") || strings.HasSuffix(base, "Tests"): // Java/Kotlin/C#
 		return true
 	}
@@ -308,6 +311,12 @@ func supported(name string) bool {
 		strings.HasSuffix(name, ".kt") ||
 		strings.HasSuffix(name, ".kts") ||
 		strings.HasSuffix(name, ".cs") ||
+		strings.HasSuffix(name, ".js") ||
+		strings.HasSuffix(name, ".mjs") ||
+		strings.HasSuffix(name, ".cjs") ||
+		strings.HasSuffix(name, ".jsx") ||
+		strings.HasSuffix(name, ".ts") ||
+		strings.HasSuffix(name, ".tsx") ||
 		strings.HasSuffix(name, ".properties") ||
 		strings.HasSuffix(name, ".yml") ||
 		strings.HasSuffix(name, ".yaml") ||
@@ -333,6 +342,9 @@ func analyzeFile(p string) ([]rules.Finding, error) {
 		findings, err = kotlinanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".cs"):
 		findings, err = csharpanalyzer.Analyze(p, src)
+	case strings.HasSuffix(p, ".js"), strings.HasSuffix(p, ".mjs"), strings.HasSuffix(p, ".cjs"),
+		strings.HasSuffix(p, ".jsx"), strings.HasSuffix(p, ".ts"), strings.HasSuffix(p, ".tsx"):
+		findings, err = jsanalyzer.Analyze(p, src)
 	case strings.HasSuffix(p, ".properties"),
 		strings.HasSuffix(p, ".yml"), strings.HasSuffix(p, ".yaml"):
 		findings, err = configanalyzer.Analyze(p, src)

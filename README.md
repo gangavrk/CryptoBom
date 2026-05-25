@@ -7,11 +7,12 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 (Cryptography Bill of Materials).
 
 > **Status:** Phase 1, pre-MVP. This is an early end-to-end slice: a Go CLI that scans
-> **Java**, **Python**, **Go**, **Kotlin**, and **C#** source — plus **Spring Boot config**
-> (`application.properties` / `.yml`) — and emits a CBOM, a SARIF report, and a terminal
-> report. Findings from all inputs merge into one CBOM.
+> **Java**, **Python**, **Go**, **Kotlin**, **C#**, and **JavaScript/TypeScript** source —
+> plus certificate/key files and **Spring Boot config** (`application.properties` / `.yml`)
+> — and emits a CBOM, a SARIF report, and a terminal report. Findings from all inputs
+> merge into one CBOM.
 
-## What it detects today (Java, Python, Go, Kotlin, C# & Spring Boot config)
+## What it detects today (Java, Python, Go, Kotlin, C#, JS/TS & config)
 
 | Category | Examples |
 |---|---|
@@ -40,6 +41,10 @@ Detection is precise by design. We favor **zero false positives over completenes
   algorithm (`MD5.Create()`, `RSA.Create(2048)`, `new DESCryptoServiceProvider()`),
   `CipherMode.ECB` is the ECB signal, and hardcoded/weak-PRNG keys are caught on
   `.Key`/`.IV` property assignments.
+- **JavaScript / TypeScript** — the Node.js `crypto` module
+  (`createHash("md5")`, `createCipheriv("aes-128-ecb", …)`, `generateKeyPair("rsa", …)`)
+  and crypto-js (`CryptoJS.MD5(…)`, `CryptoJS.DES`, `CryptoJS.mode.ECB`). Parses `.js`,
+  `.mjs`, `.cjs`, `.jsx`, `.ts`, and `.tsx`.
 - **Post-quantum algorithms** — when a NIST PQC algorithm (or a pre-standard / library
   name) is already in use, it's inventoried as **quantum-safe** rather than flagged, so
   the tool measures migration *progress*, not just debt. Recognized via JCA

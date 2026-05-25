@@ -234,6 +234,12 @@ func evalKeyPairGen(alg string) []Match {
 	case "DH", "DIFFIEHELLMAN":
 		return []Match{qv("CB-ASYM-DH-KEYGEN", "DH", "Diffie-Hellman key generation is quantum-vulnerable",
 			"key-agree", []string{"keygen"}, alg, "Migrate to ML-KEM (FIPS 203).")}
+	case "ED25519", "ED448", "EDDSA":
+		return []Match{qv("CB-ASYM-EDDSA-KEYGEN", "EdDSA", "EdDSA key generation is quantum-vulnerable",
+			"signature", []string{"keygen"}, alg, "Migrate to ML-DSA (FIPS 204) or SLH-DSA (FIPS 205).")}
+	case "X25519", "X448", "XDH":
+		return []Match{qv("CB-ASYM-XDH-KEYGEN", "XDH", "X25519/X448 key agreement is quantum-vulnerable",
+			"key-agree", []string{"keygen"}, alg, "Migrate to ML-KEM (FIPS 203).")}
 	}
 	return nil
 }
