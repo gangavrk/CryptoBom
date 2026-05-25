@@ -152,9 +152,10 @@ This flows into all three outputs:
 The rule-pack is open source and reviewed via pull request, so its change history is the
 audit trail. Tests fail the build if any rule ships without provenance
 (`TestEveryRuleHasProvenance`) or if the rule-pack file is malformed
-(`TestRulepackValidates`). Planned next: moving the remaining per-rule metadata
-(severity, title, remediation) into the same file, per-rule external cryptographer
-sign-off, and signed reports.
+(`TestRulepackValidates`). Severity, titles, and remediation stay in Go on purpose:
+they're often computed at detection time (a rule's severity can vary by context, and
+many titles are built from runtime values), so they belong with the detection logic
+rather than in the data file.
 
 ## Compliance profiles
 
