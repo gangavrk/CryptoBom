@@ -20,6 +20,7 @@ weak/deprecated algorithms and common misuse, and emits a CycloneDX **CBOM**
 | Misuse | ECB mode on block ciphers; hardcoded keys; static IVs/nonces; key/IV from a non-cryptographic PRNG; non-constant-time MAC/digest comparison |
 | Protocols & TLS config | SSL 2/3 and TLS 1.0/1.1 (broken/deprecated); weak cipher suites (RC4, 3DES, NULL, EXPORT, anon). Detected across every form a TLS version takes — see below |
 | Certificates & key material | Committed private keys and keystores (`.pem`/`.key`/`.p12`/`.jks`, SSH keys); X.509 certificates parsed for SHA-1/MD5 signatures, RSA-1024/undersized or quantum-vulnerable keys, and expiry |
+| Post-quantum (quantum-safe) | ML-KEM, ML-DSA, SLH-DSA, FN-DSA, HQC (+ pre-standard Kyber/Dilithium/SPHINCS+/Falcon and hybrids) — inventoried as **positive** assets to track migration progress |
 
 Detection is precise by design. We favor **zero false positives over completeness**:
 
@@ -39,6 +40,11 @@ Detection is precise by design. We favor **zero false positives over completenes
   algorithm (`MD5.Create()`, `RSA.Create(2048)`, `new DESCryptoServiceProvider()`),
   `CipherMode.ECB` is the ECB signal, and hardcoded/weak-PRNG keys are caught on
   `.Key`/`.IV` property assignments.
+- **Post-quantum algorithms** — when a NIST PQC algorithm (or a pre-standard / library
+  name) is already in use, it's inventoried as **quantum-safe** rather than flagged, so
+  the tool measures migration *progress*, not just debt. Recognized via JCA
+  `getInstance("ML-KEM"/"Dilithium"/…)` (Java/Kotlin), `oqs.KeyEncapsulation(…)` (Python),
+  `crypto/mlkem` & CIRCL import paths (Go), and `MLKem`/`MLDsa`/`SlhDsa` (.NET 9, C#).
 - **Certificate & key files** — `.pem/.crt/.cer/.der`, PKCS#12 (`.p12/.pfx`), JKS, `.key`,
   and SSH keys are scanned as files. Private keys and keystores in the repo are flagged
   (committed key material), and X.509 certificates are parsed (`crypto/x509`) to surface

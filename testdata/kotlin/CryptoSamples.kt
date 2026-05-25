@@ -78,6 +78,11 @@ class CryptoSamples {
         return msg.contentEquals(provided)
     }
 
+    fun postQuantum() {
+        // Post-quantum algorithm — inventoried as quantum-safe.
+        val mldsa = KeyPairGenerator.getInstance("ML-DSA")
+    }
+
     fun strongOrInventory() {
         // Good usage — must NOT be flagged as a problem.
         val aesGcm = Cipher.getInstance("AES/GCM/NoPadding")

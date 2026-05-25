@@ -13,6 +13,7 @@ import (
 	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/md5"
+	"crypto/mlkem"
 	"crypto/rand"
 	"crypto/rc4"
 	"crypto/rsa"
@@ -85,6 +86,11 @@ func timingCompare(key, msg, provided []byte) {
 	if bytes.Equal(msg, provided) {
 		_ = msg
 	}
+}
+
+func postQuantum() {
+	// Post-quantum algorithm (Go stdlib) — inventoried as quantum-safe.
+	_, _ = mlkem.GenerateKey768()
 }
 
 func strongOrInventory(msg []byte) {

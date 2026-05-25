@@ -15,6 +15,10 @@ import "strings"
 // positives. Rule identities are shared with the Java analyzer.
 func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 	switch obj {
+	// --- post-quantum (liboqs-python): oqs.KeyEncapsulation("Kyber768") ---
+	case "oqs":
+		return EvalPQC(strArg)
+
 	// --- hashes ---
 	case "hashlib":
 		if attr == "new" {

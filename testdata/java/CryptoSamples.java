@@ -92,6 +92,12 @@ public class CryptoSamples {
         KeyGenerator aesKey = KeyGenerator.getInstance("AES");
     }
 
+    void postQuantum() throws Exception {
+        // Post-quantum algorithms (BouncyCastle) — inventoried as quantum-safe.
+        KeyPairGenerator mlkem = KeyPairGenerator.getInstance("ML-KEM");
+        KeyPairGenerator mldsa = KeyPairGenerator.getInstance("Dilithium");
+    }
+
     void unanalyzable(String algName) throws Exception {
         // Non-literal argument — cannot be resolved safely, must be ignored.
         Cipher dynamic = Cipher.getInstance(algName);

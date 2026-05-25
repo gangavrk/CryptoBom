@@ -104,8 +104,20 @@ func writeSummary(w io.Writer, c colors, problems, inventory []rules.Finding) {
 		fmt.Fprint(w, "none")
 	}
 	fmt.Fprintln(w)
-	if len(inventory) > 0 {
-		fmt.Fprintf(w, "%s%d other cryptographic asset(s) inventoried (see CBOM).%s\n", c.dim, len(inventory), c.reset)
+
+	pqc, other := 0, 0
+	for _, f := range inventory {
+		if f.Category == rules.CategoryQuantumSafe {
+			pqc++
+		} else {
+			other++
+		}
+	}
+	if pqc > 0 {
+		fmt.Fprintf(w, "%s%d post-quantum (quantum-safe) asset(s) in use.%s\n", c.cyan, pqc, c.reset)
+	}
+	if other > 0 {
+		fmt.Fprintf(w, "%s%d other cryptographic asset(s) inventoried (see CBOM).%s\n", c.dim, other, c.reset)
 	}
 	fmt.Fprintln(w)
 }

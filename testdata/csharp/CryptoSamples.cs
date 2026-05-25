@@ -72,6 +72,12 @@ namespace Example
             var modern = SslProtocols.Tls13;
         }
 
+        void PostQuantum()
+        {
+            // Post-quantum algorithm (.NET 9) — inventoried as quantum-safe.
+            var kem = MLKem.GenerateKey(MLKemAlgorithm.MLKem768);
+        }
+
         void StrongOrInventory()
         {
             // Good usage — must NOT be flagged as a problem.

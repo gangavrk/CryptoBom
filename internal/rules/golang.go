@@ -2,6 +2,24 @@ package rules
 
 import "strings"
 
+// goPQC recognizes post-quantum packages by import path: Go's stdlib crypto/mlkem
+// and Cloudflare CIRCL (…/kem/kyber, …/sign/dilithium, …).
+func goPQC(importPath string) []Match {
+	switch {
+	case importPath == "crypto/mlkem" || strings.Contains(importPath, "/mlkem"):
+		return EvalPQC("ML-KEM")
+	case strings.Contains(importPath, "kyber"):
+		return EvalPQC("Kyber")
+	case strings.Contains(importPath, "dilithium") || strings.Contains(importPath, "/mldsa"):
+		return EvalPQC("ML-DSA")
+	case strings.Contains(importPath, "sphincs") || strings.Contains(importPath, "/slhdsa"):
+		return EvalPQC("SLH-DSA")
+	case strings.Contains(importPath, "falcon"):
+		return EvalPQC("Falcon")
+	}
+	return nil
+}
+
 // GoEvaluate maps a recognized Go standard-library crypto call to matches. The
 // analyzer resolves the import so we get the real package path (e.g. "crypto/md5"),
 // which makes detection precise: a call only matches if its selector resolves to a
@@ -10,6 +28,9 @@ import "strings"
 // Note: Go's standard library deliberately omits ECB mode, so there is no ECB
 // misuse rule here.
 func GoEvaluate(importPath, fn string) []Match {
+	if m := goPQC(importPath); len(m) > 0 {
+		return m
+	}
 	switch importPath {
 	// --- hashes ---
 	case "crypto/md5":

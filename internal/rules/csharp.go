@@ -29,6 +29,13 @@ func CSharpEvaluate(typeName string) []Match {
 		return evalKeyPairGen("EC")
 	case "ECDiffieHellman":
 		return evalKeyAgreement("ECDH")
+	// .NET 9+ post-quantum types.
+	case "MLKem":
+		return EvalPQC("ML-KEM")
+	case "MLDsa":
+		return EvalPQC("ML-DSA")
+	case "SlhDsa":
+		return EvalPQC("SLH-DSA")
 	}
 	return nil
 }

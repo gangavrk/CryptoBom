@@ -26,6 +26,7 @@ const (
 	CategoryWeak              Category = "weak-deprecated"
 	CategoryMisuse            Category = "misuse"
 	CategoryInventory         Category = "inventory"
+	CategoryQuantumSafe       Category = "quantum-safe" // post-quantum algorithm in use (positive)
 )
 
 // Match is a rule hit independent of any source location.
@@ -82,6 +83,11 @@ func IsFactory(className string) bool { return factories[className] }
 // Evaluate inspects a JCA factory call and returns any matches.
 func Evaluate(factory, arg string) []Match {
 	arg = strings.TrimSpace(arg)
+	// A post-quantum algorithm name short-circuits any factory (e.g. BouncyCastle
+	// KeyPairGenerator.getInstance("ML-KEM")).
+	if m := EvalPQC(arg); len(m) > 0 {
+		return m
+	}
 	switch factory {
 	case "Cipher":
 		return evalCipher(arg)

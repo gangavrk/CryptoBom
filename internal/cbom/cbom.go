@@ -227,6 +227,8 @@ func primitive(s string) cdx.CryptoPrimitive {
 		return cdx.CryptoPrimitiveStreamCipher
 	case "key-agree":
 		return cdx.CryptoPrimitiveKeyAgree
+	case "kem":
+		return cdx.CryptoPrimitiveKEM
 	case "mac":
 		return cdx.CryptoPrimitiveMAC
 	case "kdf":

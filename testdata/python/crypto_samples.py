@@ -6,9 +6,16 @@ across pyca/cryptography and pycryptodome.
 
 import hashlib
 import hmac
+import oqs
 import random
 import secrets
 import ssl
+
+
+def post_quantum():
+    # Post-quantum algorithm (liboqs) — inventoried as quantum-safe.
+    kem = oqs.KeyEncapsulation("Kyber768")
+    sig = oqs.Signature("Dilithium3")
 
 
 def tls_setup():
