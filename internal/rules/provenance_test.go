@@ -31,7 +31,11 @@ func TestEveryRuleHasProvenance(t *testing.T) {
 }
 
 func TestProvenanceWellFormed(t *testing.T) {
-	for id, p := range catalog {
+	for _, id := range emittedRuleIDs {
+		p, ok := ProvenanceFor(id)
+		if !ok {
+			continue // reported by TestEveryRuleHasProvenance
+		}
 		switch p.Status {
 		case StatusFinalized, StatusDraft, StatusGuidance:
 		default:
@@ -45,5 +49,19 @@ func TestProvenanceWellFormed(t *testing.T) {
 				t.Errorf("%s: malformed reference %+v", id, r)
 			}
 		}
+	}
+}
+
+// TestRulepackValidates re-runs the embedded rule-pack's validation so a malformed
+// rulepack.yaml fails the build, not just init.
+func TestRulepackValidates(t *testing.T) {
+	if err := pack.validate(); err != nil {
+		t.Fatalf("embedded rulepack is invalid: %v", err)
+	}
+	if RulePackVersion == "" {
+		t.Error("RulePackVersion is empty")
+	}
+	if len(pack.Profiles) == 0 {
+		t.Error("no profiles loaded")
 	}
 }

@@ -1,0 +1,130 @@
+# rulepack.yaml — cryptobom rule provenance and compliance policy.
+#
+# Detection LOGIC stays in Go (the per-language analyzers in internal/analyzers,
+# and the severity/title/category/remediation on each Match in this package).
+# This file holds the reviewable, data-only parts: the citations behind each
+# rule, the CWE and standard status, the rule-pack version, and the compliance
+# profiles. It is embedded into the binary (//go:embed) so the tool stays a
+# single offline static binary, and validated at load — see rulepack.go and the
+# rulepack tests. Reviewed via pull request; its git history is the audit trail.
+
+version: "2026.05.1"
+
+# Reusable citations. Rules and profiles reference these by key.
+references:
+  cnsa-2.0:    {authority: NSA,  id: "CNSA 2.0",                       url: "https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF"}
+  ir-8547:     {authority: NIST, id: "IR 8547 (PQC transition)",       url: "https://csrc.nist.gov/pubs/ir/8547/ipd"}
+  fips-203:    {authority: NIST, id: "FIPS 203 (ML-KEM)",              url: "https://csrc.nist.gov/pubs/fips/203/final"}
+  fips-204:    {authority: NIST, id: "FIPS 204 (ML-DSA)",              url: "https://csrc.nist.gov/pubs/fips/204/final"}
+  fips-205:    {authority: NIST, id: "FIPS 205 (SLH-DSA)",             url: "https://csrc.nist.gov/pubs/fips/205/final"}
+  fips-140-3:  {authority: NIST, id: "FIPS 140-3",                     url: "https://csrc.nist.gov/pubs/fips/140-3/final"}
+  sp-800-131a: {authority: NIST, id: "SP 800-131A Rev.2",             url: "https://csrc.nist.gov/pubs/sp/800/131/a/r2/final"}
+  sp-800-57:   {authority: NIST, id: "SP 800-57 Part 1 Rev.5",        url: "https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final"}
+  sp-800-52:   {authority: NIST, id: "SP 800-52 Rev.2 (TLS)",         url: "https://csrc.nist.gov/pubs/sp/800/52/r2/final"}
+  sp-800-38a:  {authority: NIST, id: "SP 800-38A (modes of operation)", url: "https://csrc.nist.gov/pubs/sp/800/38/a/final"}
+  sp-800-90a:  {authority: NIST, id: "SP 800-90A Rev.1 (DRBG)",       url: "https://csrc.nist.gov/pubs/sp/800/90/a/r1/final"}
+  rfc-8996:    {authority: IETF, id: "RFC 8996 (deprecate TLS 1.0/1.1)", url: "https://www.rfc-editor.org/rfc/rfc8996"}
+  rfc-7568:    {authority: IETF, id: "RFC 7568 (deprecate SSLv3)",    url: "https://www.rfc-editor.org/rfc/rfc7568"}
+  rfc-6151:    {authority: IETF, id: "RFC 6151 (MD5)",               url: "https://www.rfc-editor.org/rfc/rfc6151"}
+  rfc-5280:    {authority: IETF, id: "RFC 5280 (X.509)",             url: "https://www.rfc-editor.org/rfc/rfc5280"}
+  owasp-crypto:  {authority: OWASP, id: "Cryptographic Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html"}
+  owasp-secrets: {authority: OWASP, id: "Secrets Management Cheat Sheet",     url: "https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html"}
+  dora:        {authority: EU,   id: "DORA (Regulation 2022/2554)",  url: "https://eur-lex.europa.eu/eli/reg/2022/2554/oj"}
+
+# Per-rule provenance. Severity/title/category/remediation remain in Go (slice 1);
+# cwe is optional (inventory and quantum-safe assets carry none).
+rules:
+  # Quantum-vulnerable asymmetric crypto.
+  CB-ASYM-RSA-CIPHER:   {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-RSA-KEYGEN:   {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-EC-KEYGEN:    {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-DSA-KEYGEN:   {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-DH-KEYGEN:    {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-EDDSA-KEYGEN: {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-XDH-KEYGEN:   {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-ASYM-ED25519:      {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-SIG-RSA:           {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-SIG-ECDSA:         {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-SIG-DSA:           {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-KA-ECDH:           {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-KA-DH:             {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-CERT-KEY-RSA:      {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-CERT-KEY-EC:       {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-CERT-KEY-ED25519:  {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+  CB-CERT-KEY-DSA:      {cwe: [CWE-327], standardStatus: finalized, references: [cnsa-2.0, ir-8547, fips-203, fips-204]}
+
+  # Weak / deprecated primitives.
+  CB-WEAK-MD5:      {cwe: [CWE-328], standardStatus: finalized, references: [rfc-6151, sp-800-131a]}
+  CB-WEAK-MD4:      {cwe: [CWE-328], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-MD2:      {cwe: [CWE-328], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-SHA1:     {cwe: [CWE-328], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-DES:      {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-3DES:     {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-RC4:      {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-RC2:      {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-BLOWFISH: {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-131a]}
+  CB-WEAK-KEYSIZE:  {cwe: [CWE-326], standardStatus: finalized, references: [sp-800-57, sp-800-131a]}
+  CB-WEAK-CURVE:    {cwe: [CWE-326], standardStatus: finalized, references: [sp-800-57]}
+  CB-WEAK-CERT-SIG: {cwe: [CWE-328], standardStatus: finalized, references: [sp-800-131a]}
+
+  # Misuse.
+  CB-MISUSE-ECB:            {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-38a, owasp-crypto]}
+  CB-MISUSE-STATIC-IV:      {cwe: [CWE-329], standardStatus: finalized, references: [sp-800-38a, owasp-crypto]}
+  CB-MISUSE-HARDCODED-KEY:  {cwe: [CWE-321, CWE-798], standardStatus: guidance, references: [owasp-secrets, owasp-crypto]}
+  CB-MISUSE-WEAK-PRNG:      {cwe: [CWE-338], standardStatus: guidance, references: [sp-800-90a, owasp-crypto]}
+  CB-MISUSE-TIMING-COMPARE: {cwe: [CWE-208], standardStatus: guidance, references: [owasp-crypto]}
+
+  # Protocols & cipher suites.
+  CB-WEAK-PROTOCOL:    {cwe: [CWE-327], standardStatus: finalized, references: [rfc-8996, rfc-7568, sp-800-52]}
+  CB-WEAK-CIPHERSUITE: {cwe: [CWE-327], standardStatus: finalized, references: [sp-800-52]}
+
+  # Material.
+  CB-MATERIAL-PRIVATE-KEY: {cwe: [CWE-321, CWE-798], standardStatus: guidance, references: [owasp-secrets, owasp-crypto]}
+  CB-MATERIAL-KEYSTORE:    {cwe: [CWE-321, CWE-798], standardStatus: guidance, references: [owasp-secrets, owasp-crypto]}
+  CB-CERT-EXPIRED:         {cwe: [CWE-298], standardStatus: guidance, references: [rfc-5280]}
+
+  # Post-quantum (quantum-safe inventory) — no CWE; this is a positive signal.
+  CB-PQC: {standardStatus: finalized, references: [fips-203, fips-204, fips-205, cnsa-2.0]}
+
+  # Inventory — no CWE; these are tracked, not flagged.
+  CB-INV-HASH:        {standardStatus: guidance, references: [sp-800-131a]}
+  CB-INV-PROTOCOL:    {standardStatus: guidance, references: [sp-800-52]}
+  CB-INV-SYMKEY:      {standardStatus: guidance, references: [sp-800-57]}
+  CB-INV-PUBLIC-KEY:  {standardStatus: guidance, references: [sp-800-57]}
+  CB-INV-CERTIFICATE: {standardStatus: guidance, references: [rfc-5280]}
+
+# Compliance profiles. policy maps a finding's category to its status under the
+# standard; an optional severity raises a violation's reported severity. The
+# distinction between profiles reduces to how each treats quantum-vulnerable
+# public-key crypto — CNSA 2.0 mandates PQC migration, FIPS/DORA still permit it.
+profiles:
+  cnsa-2.0:
+    name: "NSA CNSA 2.0"
+    summary: "Quantum-vulnerable public-key crypto (RSA, ECDSA, ECDH, DH, EdDSA) must migrate to NIST PQC (ML-KEM/ML-DSA/SLH-DSA); weak/deprecated algorithms and misuse are violations."
+    reference: cnsa-2.0
+    policy:
+      quantum-vulnerable: {status: violation, severity: critical}
+      weak-deprecated:    {status: violation}
+      misuse:             {status: violation}
+      quantum-safe:       {status: compliant}
+      inventory:          {status: not-applicable}
+  fips-140-3:
+    name: "FIPS 140-3"
+    summary: "Only FIPS-approved algorithms are permitted: classical RSA/ECDSA remain approved (reported as not-applicable, not violations), while non-approved/legacy primitives, undersized keys, weak protocols, and misuse are violations."
+    reference: fips-140-3
+    policy:
+      quantum-vulnerable: {status: not-applicable}
+      weak-deprecated:    {status: violation}
+      misuse:             {status: violation}
+      quantum-safe:       {status: compliant}
+      inventory:          {status: not-applicable}
+  dora:
+    name: "EU DORA"
+    summary: "ICT risk management requires sound, current cryptography: broken/deprecated algorithms, weak protocols, and misuse are violations. Quantum-vulnerable crypto is reported as a risk but not yet a mandated violation."
+    reference: dora
+    policy:
+      quantum-vulnerable: {status: not-applicable}
+      weak-deprecated:    {status: violation}
+      misuse:             {status: violation}
+      quantum-safe:       {status: compliant}
+      inventory:          {status: not-applicable}

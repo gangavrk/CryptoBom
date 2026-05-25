@@ -126,8 +126,11 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 
 ## Rule provenance & trust
 
-Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. Each
-rule in the catalog ([internal/rules/provenance.go](internal/rules/provenance.go)) records:
+Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. The
+provenance, citations, and compliance profiles live in a single data file
+([internal/rules/rulepack.yaml](internal/rules/rulepack.yaml)) — embedded into the binary
+and schema-validated at load — so the policy is reviewable at a glance and a cryptographer
+can vet it without reading Go. Each rule records:
 
 - a **CWE** weakness class (e.g. `CWE-327`),
 - the **standard's status** — `finalized`, `draft`, or `guidance` — so you know whether
@@ -146,10 +149,12 @@ This flows into all three outputs:
   rule-pack version.
 - **terminal** — the CWE is shown on each finding and the rule-pack version in the footer.
 
-The catalog is open source and reviewed via pull request, so its change history is the
-audit trail. A test (`TestEveryRuleHasProvenance`) fails the build if any rule ships
-without provenance. Planned next: per-rule external cryptographer sign-off and signed
-reports.
+The rule-pack is open source and reviewed via pull request, so its change history is the
+audit trail. Tests fail the build if any rule ships without provenance
+(`TestEveryRuleHasProvenance`) or if the rule-pack file is malformed
+(`TestRulepackValidates`). Planned next: moving the remaining per-rule metadata
+(severity, title, remediation) into the same file, per-rule external cryptographer
+sign-off, and signed reports.
 
 ## Compliance profiles
 
