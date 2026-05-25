@@ -64,8 +64,10 @@ Detection is precise by design. We favor **zero false positives over completenes
 - **Infra & framework config** — TLS versions are usually configured outside code, so
   these are parsed too: **Spring Boot** (`application.properties`/`.yml`:
   `server.ssl.protocol`/`enabled-protocols`/`ciphers`), **nginx** (`ssl_protocols`),
-  **Apache** (`SSLProtocol`, honoring its `+`/`-` enable/disable semantics), and
-  **Kubernetes / Istio / ingress** YAML (`minProtocolVersion`, `tls-min-version`, …).
+  **Apache** (`SSLProtocol`, honoring its `+`/`-` enable/disable semantics),
+  **Kubernetes / Istio / ingress** YAML (`minProtocolVersion`, `tls-min-version`, …), and
+  **Terraform** (`.tf`: `minimum_protocol_version`, AWS ELB/CloudFront `ssl_policy` names,
+  and KMS `customer_master_key_spec` like `RSA_2048` → quantum-vulnerable).
   Deprecated protocols and weak cipher suites are flagged with their line number; TLS
   1.2/1.3 are inventoried as CycloneDX `protocol` assets.
 

@@ -28,6 +28,9 @@ func Analyze(path string, src []byte) ([]rules.Finding, error) {
 	if strings.HasSuffix(path, ".conf") {
 		return parseConf(path, src), nil
 	}
+	if strings.HasSuffix(path, ".tf") {
+		return parseTerraform(path, src), nil
+	}
 
 	var entries []kv
 	if strings.HasSuffix(path, ".yml") || strings.HasSuffix(path, ".yaml") {
@@ -196,4 +199,74 @@ func walkYAML(prefix string, n *yaml.Node, out *[]kv) {
 	case yaml.ScalarNode:
 		*out = append(*out, kv{key: prefix, value: n.Value, line: n.Line})
 	}
+}
+
+// parseTerraform scans HCL `key = "value"` assignments for TLS protocol versions,
+// AWS TLS security policies, and KMS key specs. Block headers and expressions
+// (non-identifier keys) are skipped.
+func parseTerraform(path string, src []byte) []rules.Finding {
+	var findings []rules.Finding
+	for i, raw := range strings.Split(string(src), "\n") {
+		line := strings.TrimSpace(raw)
+		if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "//") {
+			continue
+		}
+		eq := strings.IndexByte(line, '=')
+		if eq < 1 {
+			continue
+		}
+		key := strings.TrimSpace(line[:eq])
+		if !isIdent(key) {
+			continue
+		}
+		val := strings.Trim(strings.TrimSpace(line[eq+1:]), `"'`)
+		if val == "" {
+			continue
+		}
+
+		var matches []rules.Match
+		switch key {
+		case "minimum_protocol_version", "tls_min_version", "min_tls_version", "minimum_tls_version":
+			matches = rules.EvalProtocol(stripPolicyYear(val))
+		case "ssl_policy", "tls_security_policy", "security_policy":
+			matches = rules.AWSTLSPolicy(val)
+		case "customer_master_key_spec", "key_spec":
+			matches = rules.KMSKeySpec(val)
+		}
+		for _, m := range matches {
+			findings = append(findings, finding(m, path, i+1, key+" = "+val))
+		}
+	}
+	return findings
+}
+
+func isIdent(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
+// stripPolicyYear removes a trailing _<year> (CloudFront "TLSv1.1_2016" -> "TLSv1.1").
+func stripPolicyYear(v string) string {
+	if i := strings.LastIndexByte(v, '_'); i > 0 {
+		if y := v[i+1:]; len(y) == 4 && isDigits(y) {
+			return v[:i]
+		}
+	}
+	return v
+}
+
+func isDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
