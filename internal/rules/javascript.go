@@ -17,11 +17,13 @@ func JSEvaluate(obj, method, arg string) []Match {
 	switch obj {
 	case "crypto": // Node.js crypto module
 		switch method {
-		case "createHash", "createHmac":
+		case "createHash":
 			if m := EvalPQC(arg); len(m) > 0 {
 				return m
 			}
 			return evalDigest(arg)
+		case "createHmac": // HMAC-<hash>: weak for md5, inventory for sha*
+			return evalMac("Hmac" + arg)
 		case "createCipheriv", "createCipher":
 			return evalCipher(opensslCipherToTransform(arg))
 		case "generateKeyPair", "generateKeyPairSync":
@@ -29,6 +31,15 @@ func JSEvaluate(obj, method, arg string) []Match {
 				return m
 			}
 			return evalKeyPairGen(strings.ToUpper(arg))
+		// --- inventory: CSPRNG and KDFs (positive, info-severity) ---
+		case "randomBytes", "randomFillSync", "randomInt", "getRandomValues":
+			return []Match{CSPRNGAsset("Node crypto", "crypto."+method)}
+		case "pbkdf2", "pbkdf2Sync":
+			return []Match{kdfAsset("PBKDF2", "crypto."+method)}
+		case "scrypt", "scryptSync":
+			return []Match{kdfAsset("scrypt", "crypto."+method)}
+		case "hkdf", "hkdfSync":
+			return []Match{kdfAsset("HKDF", "crypto."+method)}
 		}
 	case "CryptoJS": // crypto-js library
 		if jsCryptoHashes[method] {

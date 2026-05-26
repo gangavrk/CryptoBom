@@ -3,9 +3,9 @@ const crypto = require('crypto');
 const CryptoJS = require('crypto-js');
 
 function weakAndMisused(key, iv, data) {
-  // Weak hashes and a classic ECB misuse.
+  // Weak hash, weak MAC, and a classic ECB misuse.
   const md5 = crypto.createHash('md5');
-  const sha1 = crypto.createHmac('sha1', key);
+  const hmacMd5 = crypto.createHmac('md5', key); // HMAC-MD5 — weak MAC
   const ecb = crypto.createCipheriv('aes-128-ecb', key, iv);
   const des = crypto.createCipheriv('des-ede3-cbc', key, iv);
 
@@ -22,8 +22,11 @@ function vulnerable(cb) {
   crypto.generateKeyPairSync('ed25519');
 }
 
-function strong(data) {
-  // Good usage — must NOT be flagged.
+function strong(data, key, iv, pw, salt) {
+  // Good usage — not problems, but inventoried in the CBOM as positive assets.
   const sha256 = crypto.createHash('sha256');
+  const hmac = crypto.createHmac('sha256', key);
   const gcm = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const rnd = crypto.randomBytes(32);
+  const dk = crypto.pbkdf2Sync(pw, salt, 600000, 32, 'sha256');
 }

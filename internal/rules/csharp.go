@@ -8,6 +8,10 @@ import "strings"
 // us the type and we map it. Suffixes like CryptoServiceProvider/Managed/Cng are
 // normalized away. Rule identities are shared with the other analyzers.
 func CSharpEvaluate(typeName string) []Match {
+	// All HMAC types route through evalMac: HMACMD5 -> weak, HMACSHA* -> inventory.
+	if strings.HasPrefix(typeName, "HMAC") {
+		return evalMac(typeName)
+	}
 	switch csNormalizeType(typeName) {
 	case "MD5":
 		return evalDigest("md5")
@@ -29,8 +33,6 @@ func CSharpEvaluate(typeName string) []Match {
 		return evalKeyPairGen("EC")
 	case "ECDiffieHellman":
 		return evalKeyAgreement("ECDH")
-	case "HMACMD5":
-		return evalMac("HmacMD5")
 	// .NET 9+ post-quantum types.
 	case "MLKem":
 		return EvalPQC("ML-KEM")
@@ -38,6 +40,20 @@ func CSharpEvaluate(typeName string) []Match {
 		return EvalPQC("ML-DSA")
 	case "SlhDsa":
 		return EvalPQC("SLH-DSA")
+
+	// --- inventory: strong/neutral assets (positive, info-severity) ---
+	case "Aes": // Aes.Create() / AesManaged / AesCng / AesCryptoServiceProvider
+		return []Match{invCipher("AES", "Aes", "")}
+	case "AesGcm":
+		return []Match{invCipher("AES", "AesGcm", "gcm")}
+	case "ChaCha20Poly1305":
+		return []Match{invCipher("ChaCha20-Poly1305", "ChaCha20Poly1305", "")}
+	case "RandomNumberGenerator", "RNG": // RNG <- RNGCryptoServiceProvider
+		return []Match{CSPRNGAsset("RandomNumberGenerator", typeName)}
+	case "Rfc2898DeriveBytes": // PBKDF2
+		return []Match{kdfAsset("PBKDF2", "Rfc2898DeriveBytes")}
+	case "HKDF":
+		return []Match{kdfAsset("HKDF", "HKDF")}
 	}
 	return nil
 }

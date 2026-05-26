@@ -79,11 +79,12 @@ namespace Example
             var kem = MLKem.GenerateKey(MLKemAlgorithm.MLKem768);
         }
 
-        void StrongOrInventory()
+        void StrongOrInventory(byte[] salt)
         {
-            // Good usage — must NOT be flagged as a problem.
+            // Good usage — not problems, but inventoried in the CBOM as positive assets.
             var aes = Aes.Create();
             var sha256 = SHA256.Create();
+            var pbkdf2 = new Rfc2898DeriveBytes("password", salt, 600000, HashAlgorithmName.SHA256);
         }
     }
 }

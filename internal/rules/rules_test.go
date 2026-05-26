@@ -66,12 +66,20 @@ func TestEvaluate(t *testing.T) {
 		{"KeyGenerator", "AES", []string{"CB-INV-SYMKEY"}},
 	}
 
-	// .NET HMACMD5 type maps to the same weak-MAC rule.
-	if got := CSharpEvaluate("HMACMD5"); !has(got, "CB-WEAK-MAC") {
-		t.Errorf("CSharpEvaluate(HMACMD5): missing CB-WEAK-MAC (got [%s])", ruleIDs(got))
+	// .NET type-based weak / inventory mapping.
+	csCases := map[string]string{
+		"HMACMD5":                  "CB-WEAK-MAC",
+		"HMACSHA256":               "CB-INV-MAC",
+		"Aes":                      "CB-INV-CIPHER",
+		"AesGcm":                   "CB-INV-CIPHER",
+		"RandomNumberGenerator":    "CB-INV-RANDOM",
+		"RNGCryptoServiceProvider": "CB-INV-RANDOM", // normalizes to RNG
+		"Rfc2898DeriveBytes":       "CB-INV-KDF",
 	}
-	if got := CSharpEvaluate("HMACSHA256"); len(got) != 0 {
-		t.Errorf("CSharpEvaluate(HMACSHA256): want none, got [%s]", ruleIDs(got))
+	for typ, want := range csCases {
+		if got := CSharpEvaluate(typ); !has(got, want) {
+			t.Errorf("CSharpEvaluate(%q): missing %s (got [%s])", typ, want, ruleIDs(got))
+		}
 	}
 
 	for _, tt := range tests {

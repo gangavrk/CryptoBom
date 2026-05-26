@@ -134,25 +134,27 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
   `PKCS1_v1_5` cipher are flagged as Bleichenbacher/ROBOT-vulnerable. RSA *signatures*
   (PKCS#1 v1.5 is standard there) and RSA-OAEP are deliberately not flagged.
 - **Weak MAC.** A MAC over a broken hash (HMAC-MD5/MD4/MD2) is flagged via the JCA `Mac`
-  factory (Java/Kotlin) and the .NET `HMACMD5` type; HMAC-SHA* is not flagged.
+  factory (Java/Kotlin), the .NET `HMAC*` types, and Node `createHmac`; HMAC over SHA-1/2/3
+  is not a weakness — it's inventoried instead (see below).
 
 **Positive-asset inventory (CBOM completeness).** The CBOM is meant to be a *bill of
 materials*, so it also catalogs strong/neutral crypto, not just problems:
 
 - **CSPRNGs** — `SecureRandom` (Java/Kotlin), `crypto/rand` (Go), `secrets`/`os.urandom`
-  (Python).
-- **AEAD / strong ciphers** — `AES/GCM`, `AES/CBC`, ChaCha20-Poly1305 (JCA, Go, Python,
-  and C/C++ via the shared rules).
-- **Strong MACs** — HMAC-SHA-2/3 (JCA), `crypto/hmac` (Go), `hmac.new` (Python).
-- **KDFs** — PBKDF2 (JCA `SecretKeyFactory`, Python `hashlib.pbkdf2_hmac`), plus Go
-  `x/crypto` HKDF/bcrypt/scrypt/Argon2.
+  (Python), `RandomNumberGenerator` (.NET), `crypto.randomBytes`/`getRandomValues` (JS/TS).
+- **AEAD / strong ciphers** — `AES/GCM`, `AES/CBC`, ChaCha20-Poly1305 across JCA, Go,
+  Python, .NET (`Aes`/`AesGcm`), JS/TS (`createCipheriv`), and C/C++ — via the shared rules.
+- **Strong MACs** — HMAC over SHA-1/2/3: JCA `Mac`, `crypto/hmac` (Go), `hmac.new`
+  (Python), .NET `HMACSHA*`, Node `createHmac`.
+- **KDFs** — PBKDF2 (JCA `SecretKeyFactory`, Python `hashlib.pbkdf2_hmac`, .NET
+  `Rfc2898DeriveBytes`, Node `pbkdf2`), plus HKDF/bcrypt/scrypt/Argon2 (Go `x/crypto`,
+  Node, .NET `HKDF`).
 
 These sit alongside the already-inventoried SHA-2/3 hashes, TLS 1.2/1.3, public keys, and
 certificates. All inventory is `info`-severity: it enriches the CBOM but never appears as
-a problem, reaches SARIF, or gates CI. Coverage is strongest for JCA, Go, and Python;
-C#/JS-TS get cipher/hash inventory via the shared rules and will be rounded out next, as
-will library-specific AEAD/KDF *classes* (e.g. pyca `AESGCM`/`PBKDF2HMAC`), which need
-bare-constructor analysis the per-language analyzers don't do yet.
+a problem, reaches SARIF, or gates CI. The remaining gap is library-specific AEAD/KDF
+*classes* called as bare constructors (e.g. pyca `AESGCM()`/`PBKDF2HMAC()`), which need
+bare-call analysis the per-language analyzers don't do yet.
 
 ## Rule provenance & trust
 
