@@ -67,6 +67,9 @@ func evalNew(node *sitter.Node, src []byte, path string, df *dataflow) []rules.F
 
 	var m rules.Match
 	switch afterLastDot(t.Content(src)) {
+	case "SecureRandom":
+		// `new SecureRandom(...)` — inventory the CSPRNG (a positive asset).
+		m = rules.SecureRandomAsset("")
 	case "SecretKeySpec":
 		algo := stringArgAt(args, 1, src)
 		switch {

@@ -262,6 +262,10 @@ func primitive(s string) cdx.CryptoPrimitive {
 		return cdx.CryptoPrimitiveMAC
 	case "kdf":
 		return cdx.CryptoPrimitiveKDF
+	case "drbg":
+		return cdx.CryptoPrimitiveDRBG
+	case "ae":
+		return cdx.CryptoPrimitiveAE
 	}
 	return cdx.CryptoPrimitiveUnknown
 }

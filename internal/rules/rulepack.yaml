@@ -23,6 +23,8 @@ references:
   sp-800-52:   {authority: NIST, id: "SP 800-52 Rev.2 (TLS)",         url: "https://csrc.nist.gov/pubs/sp/800/52/r2/final"}
   sp-800-38a:  {authority: NIST, id: "SP 800-38A (modes of operation)", url: "https://csrc.nist.gov/pubs/sp/800/38/a/final"}
   sp-800-90a:  {authority: NIST, id: "SP 800-90A Rev.1 (DRBG)",       url: "https://csrc.nist.gov/pubs/sp/800/90/a/r1/final"}
+  sp-800-108:  {authority: NIST, id: "SP 800-108 Rev.1 (KDF)",        url: "https://csrc.nist.gov/pubs/sp/800/108/r1/upd1/final"}
+  fips-198:    {authority: NIST, id: "FIPS 198-1 (HMAC)",             url: "https://csrc.nist.gov/pubs/fips/198-1/final"}
   rfc-8996:    {authority: IETF, id: "RFC 8996 (deprecate TLS 1.0/1.1)", url: "https://www.rfc-editor.org/rfc/rfc8996"}
   rfc-7568:    {authority: IETF, id: "RFC 7568 (deprecate SSLv3)",    url: "https://www.rfc-editor.org/rfc/rfc7568"}
   rfc-6151:    {authority: IETF, id: "RFC 6151 (MD5)",               url: "https://www.rfc-editor.org/rfc/rfc6151"}
@@ -95,6 +97,10 @@ rules:
   CB-INV-SYMKEY:      {standardStatus: guidance, references: [sp-800-57]}
   CB-INV-PUBLIC-KEY:  {standardStatus: guidance, references: [sp-800-57]}
   CB-INV-CERTIFICATE: {standardStatus: guidance, references: [rfc-5280]}
+  CB-INV-RANDOM:      {standardStatus: guidance, references: [sp-800-90a]}
+  CB-INV-CIPHER:      {standardStatus: guidance, references: [sp-800-38a]}
+  CB-INV-MAC:         {standardStatus: guidance, references: [fips-198]}
+  CB-INV-KDF:         {standardStatus: guidance, references: [sp-800-108]}
 
 # Compliance profiles. policy maps a finding's category to its status under the
 # standard; an optional severity raises a violation's reported severity. The

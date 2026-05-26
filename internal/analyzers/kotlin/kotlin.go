@@ -192,6 +192,9 @@ func evalCtorCall(call *sitter.Node, name string, src []byte, path string, df *d
 
 	var m rules.Match
 	switch name {
+	case "SecureRandom":
+		// `SecureRandom(...)` — inventory the CSPRNG (a positive asset).
+		m = rules.SecureRandomAsset("")
 	case "SecretKeySpec":
 		algo := ""
 		if len(args) > 1 {

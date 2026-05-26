@@ -32,7 +32,9 @@ func TestEvaluate(t *testing.T) {
 		// A bare block-cipher transform makes the JCE default to ECB.
 		{"Cipher", "AES", []string{"CB-MISUSE-ECB"}},
 		{"Cipher", "DES", []string{"CB-WEAK-DES", "CB-MISUSE-ECB"}},
-		{"Cipher", "AES/GCM/NoPadding", nil},
+		// Strong cipher use is inventoried (info), not flagged.
+		{"Cipher", "AES/GCM/NoPadding", []string{"CB-INV-CIPHER"}},
+		{"Cipher", "AES/CBC/PKCS5Padding", []string{"CB-INV-CIPHER"}},
 		{"Cipher", "DES/ECB/PKCS5Padding", []string{"CB-WEAK-DES", "CB-MISUSE-ECB"}},
 		{"Cipher", "DESede/CBC/PKCS5Padding", []string{"CB-WEAK-3DES"}},
 		{"Cipher", "RC4", []string{"CB-WEAK-RC4"}},
@@ -50,12 +52,17 @@ func TestEvaluate(t *testing.T) {
 		{"Signature", "SHA1withRSA", []string{"CB-SIG-RSA", "CB-WEAK-SHA1"}},
 		{"Signature", "SHA256withECDSA", []string{"CB-SIG-ECDSA"}},
 		{"KeyAgreement", "ECDH", []string{"CB-KA-ECDH"}},
-		// Weak MAC: HMAC over a broken hash is flagged; HMAC-SHA* is not.
+		// Weak MAC: HMAC over a broken hash is flagged; strong HMAC is inventoried.
 		{"Mac", "HmacMD5", []string{"CB-WEAK-MAC"}},
-		{"Mac", "HmacSHA256", nil},
-		{"Mac", "HmacSHA1", nil},
-		// Strong, modern usage produces no findings.
-		{"Cipher", "ChaCha20-Poly1305", nil},
+		{"Mac", "HmacSHA256", []string{"CB-INV-MAC"}},
+		{"Mac", "HmacSHA1", []string{"CB-INV-MAC"}},
+		// CSPRNG and KDF factories are inventoried.
+		{"SecureRandom", "DRBG", []string{"CB-INV-RANDOM"}},
+		{"SecureRandom", "SHA1PRNG", []string{"CB-INV-RANDOM"}},
+		{"SecretKeyFactory", "PBKDF2WithHmacSHA256", []string{"CB-INV-KDF"}},
+		{"SecretKeyFactory", "DES", nil}, // not a KDF -> not inventoried here
+		// Strong, modern AEAD is inventoried (info).
+		{"Cipher", "ChaCha20-Poly1305", []string{"CB-INV-CIPHER"}},
 		{"KeyGenerator", "AES", []string{"CB-INV-SYMKEY"}},
 	}
 

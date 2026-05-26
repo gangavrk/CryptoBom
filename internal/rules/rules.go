@@ -78,7 +78,9 @@ var factories = map[string]bool{
 	"Signature":        true,
 	"KeyAgreement":     true,
 	"SSLContext":       true, // SSLContext.getInstance("TLSv1.2") — protocol version
-	"Mac":              true, // Mac.getInstance("HmacMD5") — weak MAC
+	"Mac":              true, // Mac.getInstance("HmacMD5") — weak MAC / HMAC inventory
+	"SecureRandom":     true, // SecureRandom.getInstance("DRBG") — CSPRNG inventory
+	"SecretKeyFactory": true, // SecretKeyFactory.getInstance("PBKDF2…") — KDF inventory
 }
 
 // IsFactory reports whether className is a recognized JCA crypto factory.
@@ -109,6 +111,10 @@ func Evaluate(factory, arg string) []Match {
 		return EvalProtocol(arg)
 	case "Mac":
 		return evalMac(arg)
+	case "SecureRandom":
+		return []Match{SecureRandomAsset(arg)}
+	case "SecretKeyFactory":
+		return evalSecretKeyFactory(arg)
 	}
 	return nil
 }
@@ -135,7 +141,8 @@ func evalMac(alg string) []Match {
 			}}
 		}
 	}
-	return nil
+	// A non-weak HMAC (HMAC-SHA-1/256/…) is inventoried as a positive asset.
+	return []Match{invMAC(alg)}
 }
 
 func evalCipher(transform string) []Match {
@@ -203,6 +210,14 @@ func evalCipher(transform string) []Match {
 	// the JCE is a historical quirk, not real ECB — flagging it is a false positive.
 	if strings.EqualFold(mode, "ECB") && isBlockCipher(up) {
 		out = append(out, ecbMisuse(alg, transform))
+	}
+
+	// Inventory a recognized strong cipher when it isn't otherwise flagged. The
+	// block-cipher-with-no-mode case is excluded: that's the JCE default-ECB
+	// footgun (handled by jcaCipherMisuse), not a clean strong-cipher use.
+	if len(out) == 0 && strongSymmetric(up) && !strings.EqualFold(mode, "ECB") &&
+		!(isBlockCipher(up) && mode == "") {
+		out = append(out, invCipher(alg, transform, strings.ToLower(mode)))
 	}
 	return out
 }

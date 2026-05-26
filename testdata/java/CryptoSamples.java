@@ -5,6 +5,7 @@ import javax.crypto.Cipher;
 import javax.crypto.KeyAgreement;
 import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
+import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.KeyPairGenerator;
@@ -92,10 +93,12 @@ public class CryptoSamples {
     }
 
     void strongOrInventory() throws Exception {
-        // Good usage — must NOT be flagged as a problem.
+        // Good usage — not a problem, but inventoried in the CBOM as positive assets.
         Cipher aesGcm = Cipher.getInstance("AES/GCM/NoPadding");
         MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
         KeyGenerator aesKey = KeyGenerator.getInstance("AES");
+        SecretKeyFactory pbkdf2 = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+        SecureRandom drbg = SecureRandom.getInstance("DRBG");
     }
 
     void postQuantum() throws Exception {

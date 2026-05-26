@@ -136,6 +136,15 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
 - **Weak MAC.** A MAC over a broken hash (HMAC-MD5/MD4/MD2) is flagged via the JCA `Mac`
   factory (Java/Kotlin) and the .NET `HMACMD5` type; HMAC-SHA* is not flagged.
 
+**Positive-asset inventory (CBOM completeness).** The CBOM is meant to be a *bill of
+materials*, so it also catalogs strong/neutral crypto, not just problems. For Java/Kotlin
+(JCA) this includes CSPRNGs (`SecureRandom`), AEAD/strong ciphers (`AES/GCM`,
+ChaCha20-Poly1305), strong MACs (HMAC-SHA-2/3), and KDFs (PBKDF2) — alongside the
+already-inventoried SHA-2/3 hashes, TLS 1.2/1.3, public keys, and certificates. These are
+emitted as `info`-severity inventory: they enrich the CBOM but never appear as problems,
+never reach SARIF, and never gate CI. (Go, Python, and the remaining languages follow in
+later phases; today's inventory is most complete for JCA.)
+
 ## Rule provenance & trust
 
 Every rule carries a verifiable basis, so a finding isn't just the tool's say-so. The
@@ -320,7 +329,8 @@ cryptobom scan --sarif results.sarif --cbom cbom.json ./path/to/java/project
 
 `--cbom` and `--sarif` write to files independently of `--format` (which controls
 stdout). The SARIF report carries the actionable problems for developers; the CBOM
-is the full cryptographic inventory for tracking and compliance.
+is the cryptographic inventory — problems *and* positive/neutral assets — for tracking
+and compliance (see "Positive-asset inventory" above for what's catalogued).
 
 ## CI gating & noise control
 
