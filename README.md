@@ -179,8 +179,12 @@ This flows into all three outputs:
   `standardStatus` property, and `external/cwe/cwe-NNN` tags (rendered by code-scanning
   UIs). The run records `properties.rulepackVersion`.
 - **CBOM** — each component gets `externalReferences` (the standards) plus
-  `cryptobom:cwe` / `cryptobom:standardStatus` properties; the BOM metadata records the
-  rule-pack version.
+  `cryptobom:cwe` / `cryptobom:standardStatus` properties; algorithm assets also carry
+  the standard ASN.1 `oid` (e.g. `1.2.840.113549.1.1.1` for RSA) so the same asset has a
+  tool-independent identity that other CBOM/SBOM tools converge on; the BOM metadata
+  records the rule-pack version. OIDs are emitted only where the algorithm maps
+  unambiguously — symmetric ciphers (mode/key-size-bound), PQC parameter sets, and
+  generic EdDSA/ECDH/DH are deliberately left without one rather than guessed.
 - **terminal** — the CWE is shown on each finding and the rule-pack version in the footer.
 
 The rule-pack is open source and reviewed via pull request, so its change history is the

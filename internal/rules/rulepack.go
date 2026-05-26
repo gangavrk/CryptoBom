@@ -3,6 +3,7 @@ package rules
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,7 @@ type rulepack struct {
 	Version    string                `yaml:"version"`
 	References map[string]Reference  `yaml:"references"`
 	Rules      map[string]ruleMeta   `yaml:"rules"`
+	OIDs       map[string]string     `yaml:"oids"` // canonical algorithm name -> ASN.1 OID
 	Profiles   map[string]profileDef `yaml:"profiles"`
 }
 
@@ -87,6 +89,14 @@ func (p rulepack) validate() error {
 			}
 		}
 	}
+	for alg, oid := range p.OIDs {
+		if alg == "" {
+			return fmt.Errorf("oids: empty algorithm key")
+		}
+		if !isOID(oid) {
+			return fmt.Errorf("oids[%s]: malformed OID %q", alg, oid)
+		}
+	}
 	for id, prof := range p.Profiles {
 		if prof.Name == "" {
 			return fmt.Errorf("profile %s: missing name", id)
@@ -111,7 +121,32 @@ func (p rulepack) validate() error {
 	return nil
 }
 
+// OIDFor returns the ASN.1 object identifier for a canonical algorithm name, or
+// "" if none is recorded. Only unambiguous algorithm-level OIDs are mapped; a
+// missing entry means "don't assert an OID" rather than a guess.
+func OIDFor(algorithm string) string { return pack.OIDs[algorithm] }
+
 func hasHTTPS(s string) bool { return len(s) >= 8 && s[:8] == "https://" }
+
+// isOID reports whether s is a well-formed dotted-decimal object identifier
+// (at least two numeric arcs, no empty arcs).
+func isOID(s string) bool {
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		return false
+	}
+	for _, p := range parts {
+		if p == "" {
+			return false
+		}
+		for _, c := range p {
+			if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 func sevValid(s Severity) bool {
 	switch s {

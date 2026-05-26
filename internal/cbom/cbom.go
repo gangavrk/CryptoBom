@@ -144,11 +144,18 @@ func componentFor(g *group) cdx.Component {
 		}
 	}
 
+	cp := cryptoProperties(m)
+	// A tool-independent identity (ASN.1 OID) for the asset, when the algorithm
+	// maps unambiguously — so other CBOM/SBOM tools converge on the same asset.
+	if oid := rules.OIDFor(m.Algorithm); oid != "" {
+		cp.OID = oid
+	}
+
 	return cdx.Component{
 		BOMRef:             g.key,
 		Type:               cdx.ComponentTypeCryptographicAsset,
 		Name:               assetName(m),
-		CryptoProperties:   cryptoProperties(m),
+		CryptoProperties:   cp,
 		Evidence:           &cdx.Evidence{Occurrences: &occ},
 		Properties:         &props,
 		ExternalReferences: extRefs,

@@ -102,6 +102,35 @@ rules:
   CB-INV-MAC:         {standardStatus: guidance, references: [fips-198]}
   CB-INV-KDF:         {standardStatus: guidance, references: [sp-800-108]}
 
+# ASN.1 object identifiers, keyed by the canonical algorithm name a finding
+# carries (Match.Algorithm). Emitted into the CBOM's cryptoProperties.oid so an
+# asset has a tool-independent identity that other CBOM/SBOM tools converge on.
+#
+# Only UNAMBIGUOUS, algorithm-level OIDs are listed. Deliberately omitted (the
+# OID would depend on a parameter we don't always know, and guessing violates the
+# zero-false-positive rule): symmetric ciphers (DES/3DES/AES/RC2/Blowfish — OIDs
+# are mode+key-size bound), generic EdDSA/XDH/DH/ECDH, and PQC families (OIDs are
+# per parameter set, which source detection rarely pins down).
+oids:
+  RSA:      "1.2.840.113549.1.1.1"   # rsaEncryption (PKCS#1)
+  DSA:      "1.2.840.10040.4.1"      # id-dsa
+  EC:       "1.2.840.10045.2.1"      # id-ecPublicKey (ANSI X9.62)
+  ECDSA:    "1.2.840.10045.2.1"      # id-ecPublicKey
+  Ed25519:  "1.3.101.112"            # id-Ed25519 (RFC 8410)
+  RC4:      "1.2.840.113549.3.4"     # rc4
+  MD2:      "1.2.840.113549.2.2"
+  MD4:      "1.2.840.113549.2.4"
+  MD5:      "1.2.840.113549.2.5"
+  SHA-1:    "1.3.14.3.2.26"
+  SHA-224:  "2.16.840.1.101.3.4.2.4"
+  SHA-256:  "2.16.840.1.101.3.4.2.1"
+  SHA-384:  "2.16.840.1.101.3.4.2.2"
+  SHA-512:  "2.16.840.1.101.3.4.2.3"
+  SHA3-224: "2.16.840.1.101.3.4.2.7"
+  SHA3-256: "2.16.840.1.101.3.4.2.8"
+  SHA3-384: "2.16.840.1.101.3.4.2.9"
+  SHA3-512: "2.16.840.1.101.3.4.2.10"
+
 # Compliance profiles. policy maps a finding's category to its status under the
 # standard; an optional severity raises a violation's reported severity. The
 # distinction between profiles reduces to how each treats quantum-vulnerable
