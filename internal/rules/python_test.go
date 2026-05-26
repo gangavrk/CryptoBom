@@ -22,11 +22,17 @@ func TestPyEvaluate(t *testing.T) {
 		{"modes", "ECB", "", false, []string{"CB-MISUSE-ECB"}},
 		{"modes", "GCM", "", false, nil},
 		{"AES", "new", "", true, []string{"CB-MISUSE-ECB"}},
-		{"AES", "new", "", false, nil}, // AES without ECB is fine
+		{"AES", "new", "", false, []string{"CB-INV-CIPHER"}}, // non-ECB AES inventoried
 		{"DES", "new", "", true, []string{"CB-WEAK-DES", "CB-MISUSE-ECB"}},
 		{"DES3", "new", "", false, []string{"CB-WEAK-3DES"}},
 		{"algorithms", "TripleDES", "", false, []string{"CB-WEAK-3DES"}},
-		{"algorithms", "AES", "", false, nil},
+		{"algorithms", "AES", "", false, []string{"CB-INV-CIPHER"}},
+		// Inventory: CSPRNGs, MACs, KDFs (info-severity).
+		{"secrets", "token_bytes", "", false, []string{"CB-INV-RANDOM"}},
+		{"os", "urandom", "", false, []string{"CB-INV-RANDOM"}},
+		{"hmac", "new", "", false, []string{"CB-INV-MAC"}},
+		{"hashlib", "pbkdf2_hmac", "", false, []string{"CB-INV-KDF"}},
+		{"ChaCha20", "new", "", false, []string{"CB-INV-CIPHER"}},
 		{"rsa", "generate_private_key", "", false, []string{"CB-ASYM-RSA-KEYGEN"}},
 		{"ec", "generate_private_key", "", false, []string{"CB-ASYM-EC-KEYGEN"}},
 		{"RSA", "generate", "", false, []string{"CB-ASYM-RSA-KEYGEN"}},

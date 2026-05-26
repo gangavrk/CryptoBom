@@ -137,13 +137,22 @@ recognized and never flagged: `MessageDigest.isEqual`, `hmac.compare_digest`,
   factory (Java/Kotlin) and the .NET `HMACMD5` type; HMAC-SHA* is not flagged.
 
 **Positive-asset inventory (CBOM completeness).** The CBOM is meant to be a *bill of
-materials*, so it also catalogs strong/neutral crypto, not just problems. For Java/Kotlin
-(JCA) this includes CSPRNGs (`SecureRandom`), AEAD/strong ciphers (`AES/GCM`,
-ChaCha20-Poly1305), strong MACs (HMAC-SHA-2/3), and KDFs (PBKDF2) — alongside the
-already-inventoried SHA-2/3 hashes, TLS 1.2/1.3, public keys, and certificates. These are
-emitted as `info`-severity inventory: they enrich the CBOM but never appear as problems,
-never reach SARIF, and never gate CI. (Go, Python, and the remaining languages follow in
-later phases; today's inventory is most complete for JCA.)
+materials*, so it also catalogs strong/neutral crypto, not just problems:
+
+- **CSPRNGs** — `SecureRandom` (Java/Kotlin), `crypto/rand` (Go), `secrets`/`os.urandom`
+  (Python).
+- **AEAD / strong ciphers** — `AES/GCM`, `AES/CBC`, ChaCha20-Poly1305 (JCA, Go, Python,
+  and C/C++ via the shared rules).
+- **Strong MACs** — HMAC-SHA-2/3 (JCA), `crypto/hmac` (Go), `hmac.new` (Python).
+- **KDFs** — PBKDF2 (JCA `SecretKeyFactory`, Python `hashlib.pbkdf2_hmac`), plus Go
+  `x/crypto` HKDF/bcrypt/scrypt/Argon2.
+
+These sit alongside the already-inventoried SHA-2/3 hashes, TLS 1.2/1.3, public keys, and
+certificates. All inventory is `info`-severity: it enriches the CBOM but never appears as
+a problem, reaches SARIF, or gates CI. Coverage is strongest for JCA, Go, and Python;
+C#/JS-TS get cipher/hash inventory via the shared rules and will be rounded out next, as
+will library-specific AEAD/KDF *classes* (e.g. pyca `AESGCM`/`PBKDF2HMAC`), which need
+bare-constructor analysis the per-language analyzers don't do yet.
 
 ## Rule provenance & trust
 

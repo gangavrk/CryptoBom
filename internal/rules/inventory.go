@@ -9,15 +9,19 @@ import "strings"
 // enrich the CBOM. Detection stays precise: only recognized library API shapes
 // are inventoried.
 
-// SecureRandomAsset inventories a cryptographically secure RNG. detail is the
-// algorithm when known (SecureRandom.getInstance("DRBG")), otherwise "".
-func SecureRandomAsset(detail string) Match {
+// CSPRNGAsset inventories a cryptographically secure RNG. name is the API/identity
+// (e.g. "SecureRandom", "crypto/rand", "secrets"); detail is the specific call.
+func CSPRNGAsset(name, detail string) Match {
 	return Match{
 		RuleID: "CB-INV-RANDOM", Title: "Cryptographically secure RNG in use",
 		Severity: SeverityInfo, Category: CategoryInventory,
-		Algorithm: "SecureRandom", Detail: detail, Primitive: "drbg",
+		Algorithm: name, Detail: detail, Primitive: "drbg",
 	}
 }
+
+// SecureRandomAsset inventories the JCA SecureRandom CSPRNG. detail is the
+// algorithm when known (SecureRandom.getInstance("DRBG")), otherwise "".
+func SecureRandomAsset(detail string) Match { return CSPRNGAsset("SecureRandom", detail) }
 
 // evalSecretKeyFactory inventories a key-derivation function requested via
 // SecretKeyFactory.getInstance(...). PBKDF2 and PBE are the common JCA KDFs.
@@ -70,15 +74,20 @@ func invCipher(alg, detail, mode string) Match {
 	}
 }
 
+// macAsset inventories a MAC in use.
+func macAsset(name, detail string) Match {
+	return Match{
+		RuleID: "CB-INV-MAC", Title: "MAC in use",
+		Severity: SeverityInfo, Category: CategoryInventory,
+		Algorithm: name, Detail: detail, Primitive: "mac",
+	}
+}
+
 // invMAC inventories a non-weak HMAC in use (e.g. "HmacSHA256" -> HMAC-SHA-256).
 func invMAC(alg string) Match {
 	name := "HMAC"
 	if hash := strings.TrimPrefix(normHash(alg), "HMAC"); hash != "" {
 		name = "HMAC-" + canonHash(hash)
 	}
-	return Match{
-		RuleID: "CB-INV-MAC", Title: "MAC in use",
-		Severity: SeverityInfo, Category: CategoryInventory,
-		Algorithm: name, Detail: alg, Primitive: "mac",
-	}
+	return macAsset(name, alg)
 }

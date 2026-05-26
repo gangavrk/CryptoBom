@@ -19,10 +19,30 @@ func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 	case "oqs":
 		return EvalPQC(strArg)
 
-	// --- hashes ---
-	case "hashlib":
+	// --- inventory: CSPRNGs, MACs (positive, info-severity) ---
+	case "secrets": // secrets.token_bytes / token_hex / randbits / …
+		switch attr {
+		case "token_bytes", "token_hex", "token_urlsafe", "randbits", "randbelow", "choice", "SystemRandom":
+			return []Match{CSPRNGAsset("secrets", "secrets."+attr)}
+		}
+	case "os":
+		if attr == "urandom" {
+			return []Match{CSPRNGAsset("os.urandom", "os.urandom")}
+		}
+	case "hmac":
 		if attr == "new" {
+			return []Match{macAsset("HMAC", "hmac.new")}
+		}
+
+	// --- hashes & KDFs ---
+	case "hashlib":
+		switch attr {
+		case "new":
 			return evalDigest(strArg)
+		case "pbkdf2_hmac":
+			return []Match{kdfAsset("PBKDF2", "hashlib.pbkdf2_hmac")}
+		case "scrypt":
+			return []Match{kdfAsset("scrypt", "hashlib.scrypt")}
 		}
 		return evalDigest(attr) // hashlib.md5()
 	case "hashes": // pyca/cryptography: hashes.SHA1()
@@ -38,8 +58,15 @@ func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 			return []Match{ecbMisuse("block cipher", "modes.ECB")}
 		}
 	case "AES": // pycryptodome: AES.new(key, AES.MODE_ECB)
-		if attr == "new" && ecbArg {
-			return []Match{ecbMisuse("AES", "AES.MODE_ECB")}
+		if attr == "new" {
+			if ecbArg {
+				return []Match{ecbMisuse("AES", "AES.MODE_ECB")}
+			}
+			return []Match{invCipher("AES", "AES.new", "")} // inventory non-ECB AES
+		}
+	case "ChaCha20", "ChaCha20_Poly1305": // pycryptodome (AEAD) stream ciphers
+		if attr == "new" {
+			return []Match{invCipher(obj, obj+".new", "")}
 		}
 
 	// --- weak symmetric ciphers ---
@@ -60,6 +87,8 @@ func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 			return evalCipher("RC4")
 		case "Blowfish":
 			return evalCipher("Blowfish")
+		case "AES", "AES128", "AES256", "Camellia", "SM4", "ChaCha20":
+			return []Match{invCipher(attr, "algorithms."+attr, "")}
 		}
 
 	// --- quantum-vulnerable asymmetric keygen ---

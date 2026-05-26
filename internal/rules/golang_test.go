@@ -29,8 +29,14 @@ func TestGoEvaluate(t *testing.T) {
 		{"crypto/ed25519", "GenerateKey", []string{"CB-ASYM-ED25519"}},
 		{"crypto/dsa", "GenerateKey", []string{"CB-ASYM-DSA-KEYGEN"}},
 		{"crypto/ecdh", "X25519", []string{"CB-KA-ECDH"}},
-		// Secure / unrelated usage must produce nothing.
-		{"crypto/rand", "Read", nil},
+		// Inventory: strong/neutral assets (info-severity).
+		{"crypto/rand", "Read", []string{"CB-INV-RANDOM"}},
+		{"crypto/aes", "NewCipher", []string{"CB-INV-CIPHER"}},
+		{"crypto/hmac", "New", []string{"CB-INV-MAC"}},
+		{"golang.org/x/crypto/pbkdf2", "Key", []string{"CB-INV-KDF"}},
+		{"golang.org/x/crypto/argon2", "IDKey", []string{"CB-INV-KDF"}},
+		{"golang.org/x/crypto/chacha20poly1305", "New", []string{"CB-INV-CIPHER"}},
+		// Unrelated usage must produce nothing.
 		{"crypto/sha256", "Size", nil}, // constant access, not a hashing call
 		{"crypto/rsa", "PublicKey", nil},
 		{"fmt", "Println", nil},

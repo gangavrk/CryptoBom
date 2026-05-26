@@ -104,6 +104,45 @@ func GoEvaluate(importPath, fn string) []Match {
 				"ECDH key agreement is quantum-vulnerable", "key-agree",
 				[]string{"keyderive"}, "ecdh."+fn, "Migrate to ML-KEM (FIPS 203).")}
 		}
+
+	// --- inventory: strong/neutral assets (positive, info-severity) ---
+	case "crypto/rand": // CSPRNG
+		switch fn {
+		case "Read", "Int", "Prime", "Reader":
+			return []Match{CSPRNGAsset("crypto/rand", "crypto/rand."+fn)}
+		}
+	case "crypto/aes":
+		if fn == "NewCipher" {
+			return []Match{invCipher("AES", "aes.NewCipher", "")}
+		}
+	case "golang.org/x/crypto/chacha20poly1305":
+		if strings.HasPrefix(fn, "New") {
+			return []Match{invCipher("ChaCha20-Poly1305", "chacha20poly1305."+fn, "")}
+		}
+	case "crypto/hmac":
+		if fn == "New" {
+			return []Match{macAsset("HMAC", "hmac.New")}
+		}
+	case "golang.org/x/crypto/pbkdf2":
+		if fn == "Key" {
+			return []Match{kdfAsset("PBKDF2", "pbkdf2.Key")}
+		}
+	case "golang.org/x/crypto/hkdf":
+		return []Match{kdfAsset("HKDF", "hkdf."+fn)}
+	case "golang.org/x/crypto/scrypt":
+		if fn == "Key" {
+			return []Match{kdfAsset("scrypt", "scrypt.Key")}
+		}
+	case "golang.org/x/crypto/bcrypt":
+		switch fn {
+		case "GenerateFromPassword", "CompareHashAndPassword":
+			return []Match{kdfAsset("bcrypt", "bcrypt."+fn)}
+		}
+	case "golang.org/x/crypto/argon2":
+		switch fn {
+		case "IDKey", "Key":
+			return []Match{kdfAsset("Argon2", "argon2."+fn)}
+		}
 	}
 	return nil
 }
