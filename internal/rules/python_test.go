@@ -42,6 +42,28 @@ func TestPyEvaluate(t *testing.T) {
 		{"json", "loads", "", false, nil}, // unrelated call -> nothing
 	}
 
+	// Bare constructor calls (pyca/pycryptodome classes).
+	ctorCases := map[string]string{
+		"AESGCM":           "CB-INV-CIPHER",
+		"ChaCha20Poly1305": "CB-INV-CIPHER",
+		"PBKDF2HMAC":       "CB-INV-KDF",
+		"PBKDF2":           "CB-INV-KDF",
+		"Scrypt":           "CB-INV-KDF",
+		"HKDF":             "CB-INV-KDF",
+		"Argon2id":         "CB-INV-KDF",
+	}
+	for name, want := range ctorCases {
+		if got := PyConstructor(name); !has(got, want) {
+			t.Errorf("PyConstructor(%q): missing %s (got [%s])", name, want, ruleIDs(got))
+		}
+	}
+	// Off-list bare names are ignored (no false positives).
+	for _, name := range []string{"print", "list", "MyHelper", "encrypt", "main"} {
+		if got := PyConstructor(name); len(got) != 0 {
+			t.Errorf("PyConstructor(%q): want none, got [%s]", name, ruleIDs(got))
+		}
+	}
+
 	for _, tt := range tests {
 		got := PyEvaluate(tt.obj, tt.attr, tt.strArg, tt.ecb)
 		if len(got) != len(tt.want) {

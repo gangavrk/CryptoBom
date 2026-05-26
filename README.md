@@ -152,9 +152,11 @@ materials*, so it also catalogs strong/neutral crypto, not just problems:
 
 These sit alongside the already-inventoried SHA-2/3 hashes, TLS 1.2/1.3, public keys, and
 certificates. All inventory is `info`-severity: it enriches the CBOM but never appears as
-a problem, reaches SARIF, or gates CI. The remaining gap is library-specific AEAD/KDF
-*classes* called as bare constructors (e.g. pyca `AESGCM()`/`PBKDF2HMAC()`), which need
-bare-call analysis the per-language analyzers don't do yet.
+a problem, reaches SARIF, or gates CI. Library-specific AEAD/KDF *classes* called as bare
+constructors — pyca `AESGCM()`/`ChaCha20Poly1305()`/`PBKDF2HMAC()`/`Scrypt()`/`HKDF()` and
+peers — are now inventoried too: the Python analyzer matches a curated list of distinctive
+crypto class names (the one place it routes bare, unqualified names), which is precise
+enough for info-severity inventory without import resolution.
 
 ## Rule provenance & trust
 

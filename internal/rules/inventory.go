@@ -83,6 +83,17 @@ func macAsset(name, detail string) Match {
 	}
 }
 
+// aeadCipher inventories an authenticated-encryption cipher in use (AES-GCM,
+// ChaCha20-Poly1305, …). alg is the asset name; detail is the spec as written.
+func aeadCipher(alg, detail string) Match {
+	return Match{
+		RuleID: "CB-INV-CIPHER", Title: "Symmetric cipher in use",
+		Severity: SeverityInfo, Category: CategoryInventory,
+		Algorithm: alg, Detail: detail, Primitive: "ae",
+		Functions: []string{"encrypt", "decrypt"},
+	}
+}
+
 // invMAC inventories a non-weak HMAC in use (e.g. "HmacSHA256" -> HMAC-SHA-256).
 func invMAC(alg string) Match {
 	name := "HMAC"

@@ -117,6 +117,33 @@ func PyEvaluate(obj, attr, strArg string, ecbArg bool) []Match {
 	return nil
 }
 
+// PyConstructor maps a bare pyca/pycryptodome class or function name — called as a
+// constructor (e.g. AESGCM(key), PBKDF2HMAC(...)) rather than obj.method(...) — to an
+// inventory match. These are distinctive, crypto-specific identifiers, so matching
+// them without import resolution is precise enough for info-severity inventory.
+// Returns nil for anything off the curated list, so ordinary bare calls are ignored.
+func PyConstructor(name string) []Match {
+	switch name {
+	// pyca AEAD ciphers (cryptography.hazmat.primitives.ciphers.aead).
+	case "AESGCM", "AESCCM", "AESGCMSIV", "AESSIV", "AESOCB3":
+		return []Match{aeadCipher("AES", name)}
+	case "ChaCha20Poly1305":
+		return []Match{aeadCipher("ChaCha20-Poly1305", name)}
+	// KDFs — pyca classes and pycryptodome functions.
+	case "PBKDF2HMAC", "PBKDF2":
+		return []Match{kdfAsset("PBKDF2", name)}
+	case "Scrypt", "scrypt":
+		return []Match{kdfAsset("scrypt", name)}
+	case "HKDF", "HKDFExpand":
+		return []Match{kdfAsset("HKDF", name)}
+	case "Argon2id":
+		return []Match{kdfAsset("Argon2", name)}
+	case "X963KDF", "ConcatKDFHash", "ConcatKDFHMAC", "KBKDFHMAC":
+		return []Match{kdfAsset(name, name)}
+	}
+	return nil
+}
+
 // pySymAlg maps a Python cipher name to the JCA-style name the shared rules use.
 func pySymAlg(obj string) string {
 	switch obj {

@@ -24,6 +24,8 @@ def tls_setup():
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.asymmetric import rsa, ec
 from Crypto.Cipher import AES, DES, PKCS1_OAEP, PKCS1_v1_5
 from Crypto.PublicKey import RSA
@@ -79,11 +81,15 @@ def timing_compare(key, msg, provided):
     return msg == provided
 
 
-def strong_or_inventory(key, iv):
-    # Good usage — must NOT be flagged as a problem.
+def strong_or_inventory(key, iv, salt):
+    # Good usage — not problems, but inventoried in the CBOM as positive assets.
     digest = hashlib.sha256()
     good = hashes.SHA256()
     aead = Cipher(algorithms.AES(key), modes.GCM(iv))
+    # pyca bare-constructor classes (AEAD + KDF).
+    box = AESGCM(key)
+    chacha = ChaCha20Poly1305(key)
+    kdf = PBKDF2HMAC(algorithm=good, length=32, salt=salt, iterations=600000)
 
 
 def unanalyzable(alg):

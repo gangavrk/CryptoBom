@@ -2,9 +2,11 @@
 //
 // It recognizes qualified calls from the two dominant libraries — pyca/cryptography
 // and pycryptodome — such as hashlib.md5(), modes.ECB(), AES.new(key, AES.MODE_ECB),
-// and rsa.generate_private_key(...). Bare, unqualified names are left alone:
-// resolving them needs import/alias tracking we don't yet do, and guessing would
-// produce false positives.
+// and rsa.generate_private_key(...). Bare, unqualified names are generally left alone
+// (resolving them needs import/alias tracking we don't do, and guessing would produce
+// false positives). The one exception is a curated set of distinctive crypto class
+// constructors (AESGCM, PBKDF2HMAC, …) routed to rules.PyConstructor for info-severity
+// inventory — see evalCall.
 package python
 
 import (
@@ -164,7 +166,16 @@ func isMacSourceCall(call *sitter.Node, src []byte) bool {
 
 func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) []rules.Finding {
 	fn := call.ChildByFieldName("function")
-	if fn == nil || fn.Type() != "attribute" {
+	if fn == nil {
+		return nil
+	}
+	// Bare constructor calls — e.g. pyca AESGCM(key) / PBKDF2HMAC(...). Only a curated
+	// list of distinctive crypto class names is matched (see rules.PyConstructor), so
+	// ordinary unqualified calls are still ignored.
+	if fn.Type() == "identifier" {
+		return pyFindings(rules.PyConstructor(fn.Content(src)), call, src, path)
+	}
+	if fn.Type() != "attribute" {
 		return nil // only qualified calls (obj.method)
 	}
 	obj := simpleName(fn.ChildByFieldName("object"), src)
@@ -180,10 +191,14 @@ func evalCall(call *sitter.Node, src []byte, path string, df *dataflow) []rules.
 		matches = rules.AnnotateKey(matches, bits, curve)
 	}
 	matches = append(matches, pyMisuse(obj, attr, args, src, df, enclosingScope(call))...)
+	return pyFindings(matches, call, src, path)
+}
+
+// pyFindings anchors matches to the call's location.
+func pyFindings(matches []rules.Match, call *sitter.Node, src []byte, path string) []rules.Finding {
 	if len(matches) == 0 {
 		return nil
 	}
-
 	pt := call.StartPoint()
 	findings := make([]rules.Finding, 0, len(matches))
 	for _, m := range matches {
